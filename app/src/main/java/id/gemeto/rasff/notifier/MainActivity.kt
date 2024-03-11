@@ -149,7 +149,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel) {
         if(!isSearching) {
             items(data.articles) { item ->
                 ArticleItem(item) { article ->
-                    var intent = Intent(context, DetailActivity::class.java)
+                    val intent = Intent(context, DetailActivity::class.java)
                     intent.putExtra("title", article.title)
                     intent.putExtra("description", article.description)
                     context.startActivity(intent)
