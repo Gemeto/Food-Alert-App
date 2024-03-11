@@ -39,7 +39,14 @@ import id.gemeto.rasff.notifier.ui.theme.Typography
 import id.gemeto.rasff.notifier.ui.util.UiResult
 import id.gemeto.rasff.notifier.workers.NotifierWorker
 import android.Manifest
-import androidx.work.OneTimeWorkRequestBuilder
+import android.content.Intent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextField
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
@@ -64,18 +71,8 @@ class MainActivity : ComponentActivity() {
             ExistingPeriodicWorkPolicy.UPDATE,
             notifierWorkRequest,
         )
-        /*val notifierWorkRequest =
-            OneTimeWorkRequestBuilder<NotifierWorker>()
-                .setConstraints(constraints)
-                .build()
-        val workManager = WorkManager.getInstance(this)
-        workManager.enqueue(
-            notifierWorkRequest,
-        )*/
-
         setContent {
             MyApplicationTheme {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -89,7 +86,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
-
     RuntimePermissionsDialog(
         Manifest.permission.POST_NOTIFICATIONS,
         onPermissionDenied = {},
@@ -106,22 +102,26 @@ fun HomeScreen(viewModel: HomeViewModel) {
             // todo: show something ~
         }
         is UiResult.Success -> {
-            Articles(data = state.data, onItemClicked = {
-                // todo: go to somewhere ~
-            })
+            Articles(data = state.data, viewModel = viewModel)
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Articles(data: HomeUiState, onItemClicked: (Article) -> Unit) {
+fun Articles(data: HomeUiState, viewModel: HomeViewModel) {
+    val context = LocalContext.current
+    val searchText by viewModel.searchText.collectAsState()
+    val isSearching by viewModel.isSearching.collectAsState()
+
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(16.dp)
     ) {
         item {
             Column(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
                     .wrapContentHeight()
                     .padding(18.dp)
             ) {
@@ -133,11 +133,27 @@ fun Articles(data: HomeUiState, onItemClicked: (Article) -> Unit) {
                     data.description,
                     style = MaterialTheme.typography.bodyLarge
                 )
+                TextField(
+                    value = searchText,
+                    onValueChange = viewModel::onSearchTextChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(text = "search")}
+                )
+                if(isSearching){
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
+                }
             }
         }
-        items(data.articles) { item ->
-            ArticleItem(item) { article ->
-                onItemClicked.invoke(article)
+        if(!isSearching) {
+            items(data.articles) { item ->
+                ArticleItem(item) { article ->
+                    var intent = Intent(context, DetailActivity::class.java)
+                    intent.putExtra("title", article.title)
+                    intent.putExtra("description", article.description)
+                    context.startActivity(intent)
+                }
             }
         }
     }
@@ -177,6 +193,7 @@ fun ArticleItem(item: Article, onItemClicked: (Article) -> Unit) {
 fun HomePreview() {
     MyApplicationTheme {
         Articles(
+            viewModel = HomeViewModel(),
             data = HomeUiState(
                 title = "Dave Leeds on Kotlin - typealias.com",
                 link = "https://typealias.com/",
@@ -190,8 +207,6 @@ fun HomePreview() {
                     )
                 }
             )
-        ) {
-            // todo: go to somewhere ~
-        }
+        )
     }
 }
