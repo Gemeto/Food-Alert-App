@@ -5,6 +5,10 @@ import id.gemeto.rasff.notifier.ui.Article
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tw.ktrssreader.kotlin.model.channel.RssStandardChannel
 import tw.ktrssreader.kotlin.parser.RssStandardParser
 import java.util.ArrayList
@@ -32,26 +36,38 @@ class CloudService(private val httpClient: HttpClient) {
         content.clear()
         temp.toCollection(content)
         var i = 0
-        content.forEachIndexed { index, value ->
-            //Titles
-            if(index % 2 == 0) {
-                titles.add(i, value.text())
-            } else {
-                titles[i] = titles[i] + " - " + value.text()
-                i++
-            }
-            //Links
-            if(value.selectFirst("a") != null){
-                val link = value.selectFirst("a")!!.attr("href")
-                links.add(link)
-                //Images
-                val articleHtml = httpClient.get(if(link.contains("http")) { link } else{ domain + link }).bodyAsText()
-                val articleDoc = Ksoup.parse(articleHtml)
-                val imageSrc = articleDoc.selectFirst("img")?.attr("src")
-                if(imageSrc != null){
-                    images.add(domain + imageSrc)
-                }else{
-                    images.add("")
+        coroutineScope {
+            content.forEachIndexed { index, value ->
+                launch(Dispatchers.Main) {
+                    withContext(Dispatchers.Main) {
+                        //Titles
+                        if (index % 2 == 0) {
+                            titles.add(i, value.text())
+                        } else {
+                            titles[i] = titles[i] + " - " + value.text()
+                            i++
+                        }
+                        //Links
+                        if (value.selectFirst("a") != null) {
+                            val link = value.selectFirst("a")!!.attr("href")
+                            links.add(link)
+                            //Images
+                            val articleHtml = httpClient.get(
+                                if (link.contains("http")) {
+                                    link
+                                } else {
+                                    domain + link
+                                }
+                            ).bodyAsText()
+                            val articleDoc = Ksoup.parse(articleHtml)
+                            val imageSrc = articleDoc.selectFirst("img")?.attr("src")
+                            if (imageSrc != null) {
+                                images.add(domain + imageSrc)
+                            } else {
+                                images.add("")
+                            }
+                        }
+                    }
                 }
             }
         }
