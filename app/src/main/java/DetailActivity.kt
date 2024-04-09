@@ -21,7 +21,9 @@ import id.gemeto.rasff.notifier.ui.theme.MyApplicationTheme
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import coil.compose.AsyncImage
 
 class DetailActivity : ComponentActivity() {
 
@@ -29,6 +31,7 @@ class DetailActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val title: String? = intent.getStringExtra("title")
         val description: String? = intent.getStringExtra("description")
+        val imageUrl: String? = intent.getStringExtra("imageUrl")
         setContent {
             MyApplicationTheme {
                 // A surface container using the 'background' color from the theme
@@ -36,7 +39,7 @@ class DetailActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    DetailScreen(title = title, description = description)
+                    DetailScreen(title = title, description = description, imageUrl = imageUrl)
                 }
             }
         }
@@ -44,7 +47,7 @@ class DetailActivity : ComponentActivity() {
 }
 
 @Composable
-fun DetailScreen(title: String?, description: String?) {
+fun DetailScreen(title: String?, description: String?, imageUrl: String?) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(16.dp)
@@ -68,6 +71,13 @@ fun DetailScreen(title: String?, description: String?) {
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = imageUrl,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
@@ -81,7 +91,7 @@ fun DetailPreview() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            DetailScreen(title = "title", description = "description")
+            DetailScreen(title = "title", description = "description", imageUrl = "https://i.stack.imgur.com/NTaY0.png")
         }
     }
 }

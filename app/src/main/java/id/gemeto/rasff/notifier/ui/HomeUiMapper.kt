@@ -6,12 +6,12 @@ import tw.ktrssreader.kotlin.model.item.RssStandardItem
 
 class HomeUiMapper {
 
-    fun map(response: RssStandardChannel): HomeUiState {
+    fun map(responseRSS: RssStandardChannel, responseHTML: List<Article>): HomeUiState {
         return HomeUiState(
-            title = response.title.orEmpty(),
-            link = response.link.orEmpty(),
-            description = response.description.orEmpty(),
-            articles = mapArticle(response.items.orEmpty())
+            title = responseRSS.title.orEmpty(),
+            link = responseRSS.link.orEmpty(),
+            description = responseRSS.description.orEmpty(),
+            articles = mapArticle(responseRSS.items.orEmpty()).plus(responseHTML)
         )
     }
 

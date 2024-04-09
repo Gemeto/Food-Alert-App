@@ -58,8 +58,7 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val home = withContext(Dispatchers.IO) {
-                    val response = cloudService.getArticles()
-                    uiMapper.map(response)
+                    uiMapper.map(cloudService.getRSSArticles(), cloudService.getHTMLArticles())
                 }
                 _uiState.update {
                     UiResult.Success(home)

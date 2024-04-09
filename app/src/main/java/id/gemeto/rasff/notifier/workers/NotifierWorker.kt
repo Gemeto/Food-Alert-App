@@ -8,9 +8,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
-import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -31,16 +28,16 @@ class NotifierWorker(private val appContext: Context, params: WorkerParameters) 
     private val notificationChannelId = "AndroidAlertsNotificationChannelId"
     private val cloudService = CloudService(ktorClient)
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override suspend fun doWork(): Result {
-        val response = cloudService.getArticles()
+        val responseRSS = cloudService.getRSSArticles()
+        val responseHTML = cloudService.getHTMLArticles()
         val db = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java, "database-rasff-notifications"
         ).build()
         val lastNotifiedDao = db.lastNotifiedDao()
         val lastNotified: LastNotified? = lastNotifiedDao.getOne()
-        if(lastNotified == null || lastNotified.firstItemTitle != response.items?.first()?.title.orEmpty()){
+        if(lastNotified == null || lastNotified.firstItemTitle?.contains(responseRSS.items?.first()?.title.orEmpty()) == false || lastNotified.firstItemTitle?.contains(responseHTML.first().title) == false){
             if (ActivityCompat.checkSelfPermission(
                     appContext,
                     Manifest.permission.POST_NOTIFICATIONS,
@@ -53,7 +50,7 @@ class NotifierWorker(private val appContext: Context, params: WorkerParameters) 
                 if(lastNotified != null) {
                     lastNotifiedDao.delete(lastNotified)
                 }
-                lastNotifiedDao.insert(LastNotified(UUID.randomUUID().toString(), response.items?.first()?.title.orEmpty()))
+                lastNotifiedDao.insert(LastNotified(UUID.randomUUID().toString(), responseRSS.items?.first()?.title.orEmpty() + responseHTML.first().title))
                 return Result.success()
             }
             return Result.retry()

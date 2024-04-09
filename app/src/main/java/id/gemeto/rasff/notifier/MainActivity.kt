@@ -96,10 +96,12 @@ fun HomeScreen(viewModel: HomeViewModel) {
 
     when (val state = homeState.value) {
         is UiResult.Fail -> {
-            // todo: show something ~
+            Text(text = "Fatal error ocurred...")
         }
         UiResult.Loading -> {
-            // todo: show something ~
+            Box(modifier = Modifier.fillMaxSize()) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
         }
         is UiResult.Success -> {
             Articles(data = state.data, viewModel = viewModel)
@@ -152,6 +154,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel) {
                     val intent = Intent(context, DetailActivity::class.java)
                     intent.putExtra("title", article.title)
                     intent.putExtra("description", article.description)
+                    intent.putExtra("description", article.imageUrl)
                     context.startActivity(intent)
                 }
             }
