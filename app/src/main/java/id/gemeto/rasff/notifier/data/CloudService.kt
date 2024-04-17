@@ -5,10 +5,8 @@ import id.gemeto.rasff.notifier.ui.Article
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import tw.ktrssreader.kotlin.model.channel.RssStandardChannel
 import tw.ktrssreader.kotlin.parser.RssStandardParser
 import java.util.ArrayList
@@ -29,51 +27,31 @@ class CloudService(private val httpClient: HttpClient) {
         val html = httpClient.get(urlString).bodyAsText()
         val doc = Ksoup.parse(html)
         val content = doc.select(".theContent p")
-        val titles = ArrayList<String>()
-        val links = ArrayList<String>()
-        val images = ArrayList<String>()
         val temp = content.drop(2).dropLast(1)
+        val articles = ArrayList<Article>()
         content.clear()
         temp.toCollection(content)
-        var i = 0
         coroutineScope {
             content.forEachIndexed { index, value ->
-                launch(Dispatchers.Main) {
-                    withContext(Dispatchers.Main) {
-                        //Titles
+                async {//Processing async because the image scrapping takes some time
+                    try {
                         if (index % 2 == 0) {
-                            titles.add(i, value.text())
-                        } else {
-                            titles[i] = titles[i] + " - " + value.text()
-                            i++
-                        }
-                        //Links
-                        if (value.selectFirst("a") != null) {
-                            val link = value.selectFirst("a")!!.attr("href")
-                            links.add(link)
-                            //Images
+                            var link = value.selectFirst("a")!!.attr("href")
+                            if (!link.contains("http")) {
+                                link = domain + link
+                            }
                             val articleHtml = httpClient.get(
-                                if (link.contains("http")) {
-                                    link
-                                } else {
-                                    domain + link
-                                }
+                                link
                             ).bodyAsText()
                             val articleDoc = Ksoup.parse(articleHtml)
                             val imageSrc = articleDoc.selectFirst("img")?.attr("src")
-                            if (imageSrc != null) {
-                                images.add(domain + imageSrc)
-                            } else {
-                                images.add("")
-                            }
+                            articles.add(Article(value.text(), content[index+1].text(), value.selectFirst("a")!!.attr("href"), if(imageSrc != null) { domain + imageSrc } else ""))
                         }
+                    }catch(_: Exception){
+
                     }
-                }
+                }.await()
             }
-        }
-        val articles = ArrayList<Article>()
-        titles.forEachIndexed {index, value ->
-            articles.add(Article(titles[index], "", links[index], images[index]))
         }
         return articles
     }

@@ -77,6 +77,7 @@ dependencies {
     ksp("androidx.room:room-compiler:$room_version")
     val ksoup_version = "0.1.2"
     implementation("com.fleeksoft.ksoup:ksoup:$ksoup_version")
+    implementation("com.google.mlkit:translate:17.0.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
