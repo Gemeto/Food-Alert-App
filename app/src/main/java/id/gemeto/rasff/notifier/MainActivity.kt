@@ -40,13 +40,21 @@ import id.gemeto.rasff.notifier.ui.util.UiResult
 import id.gemeto.rasff.notifier.workers.NotifierWorker
 import android.Manifest
 import android.content.Intent
+import android.util.Log
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.TextField
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
@@ -104,21 +112,25 @@ fun HomeScreen(viewModel: HomeViewModel) {
             }
         }
         is UiResult.Success -> {
-            Articles(data = state.data, viewModel = viewModel)
+            Articles(data = state.data, viewModel = viewModel, onLoadMore = {
+                viewModel.loadMoreArticles()
+            })
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Articles(data: HomeUiState, viewModel: HomeViewModel) {
+fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit) {
     val context = LocalContext.current
     val searchText by viewModel.searchText.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
+    val listState = rememberLazyListState()
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(16.dp)
+        contentPadding = PaddingValues(16.dp),
+        state = listState
     ) {
         item {
             Column(
@@ -141,24 +153,32 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text(text = "search")}
                 )
-                if(isSearching){
+                /*if(isSearching){
                     Box(modifier = Modifier.fillMaxSize()) {
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     }
-                }
+                }*/
             }
         }
-        if(!isSearching) {
+        //if(!isSearching) {
             items(data.articles) { item ->
                 ArticleItem(item) { article ->
                     val intent = Intent(context, DetailActivity::class.java)
                     intent.putExtra("title", article.title)
                     intent.putExtra("description", article.description)
-                    intent.putExtra("description", article.imageUrl)
+                    intent.putExtra("imageUrl", article.imageUrl)
                     context.startActivity(intent)
                 }
             }
+        //}
+    }
+    if(isSearching){
+        Box(modifier = Modifier.fillMaxSize()) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         }
+    }
+    AtricleLazyLoaderHandler(listState = listState, buffer = 1) {
+        onLoadMore()
     }
 }
 
@@ -191,6 +211,33 @@ fun ArticleItem(item: Article, onItemClicked: (Article) -> Unit) {
     }
 }
 
+@Composable
+fun AtricleLazyLoaderHandler(
+    listState: LazyListState,
+    buffer: Int = 1,
+    onLoadMore: () -> Unit
+) {
+    val loadMore = remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val totalItemsNumber = layoutInfo.totalItemsCount
+            val lastVisibleItemIndex = (layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)
+            Log.d("CHECKING", "$lastVisibleItemIndex ; $totalItemsNumber")
+            totalItemsNumber > 10 && lastVisibleItemIndex >= (totalItemsNumber - buffer)
+        }
+    }
+
+    LaunchedEffect(loadMore) {
+        snapshotFlow{ loadMore.value }
+            .distinctUntilChanged()
+            .collect {
+                if(loadMore.value){
+                    onLoadMore()
+                }
+            }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun HomePreview() {
@@ -209,7 +256,8 @@ fun HomePreview() {
                         "https://typealias.com/img/social/social-data-classes.png",
                     )
                 }
-            )
+            ),
+            onLoadMore = {}
         )
     }
 }

@@ -27,6 +27,8 @@ class HomeViewModel : ViewModel() {
     private val _isSearching = MutableStateFlow(false)
     val isSearching = _isSearching.asStateFlow()
     private val _uiState = MutableStateFlow<UiResult<HomeUiState>>(UiResult.Loading)
+    private val _page = MutableStateFlow(1)
+    private val _itemsPerPage = 10
 
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
         .onEach { _isSearching.update { true } }
@@ -58,10 +60,34 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val home = withContext(Dispatchers.IO) {
-                    uiMapper.map(cloudService.getRSSArticles(), cloudService.getHTMLArticles())
+                    uiMapper.map(
+                        cloudService.getRSSArticles(_page.value, _itemsPerPage),
+                        cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                    )
                 }
                 _uiState.update {
                     UiResult.Success(home)
+                }
+            } catch (err: Throwable) {
+                _uiState.update { UiResult.Fail(err) }
+            }
+        }
+    }
+
+    fun loadMoreArticles() {
+        viewModelScope.launch {
+            try {
+                if(!_isSearching.value) {
+                    _isSearching.update { true }
+                    _page.value++
+                    val home = withContext(Dispatchers.IO) {
+                        ((_uiState.value as UiResult.Success<HomeUiState>).data.articles as ArrayList).addAll(
+                            cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                        )
+                        (_uiState.value as UiResult.Success<HomeUiState>).data
+                    }
+                    _uiState.update { UiResult.Success(home) }
+                    _isSearching.update { false }
                 }
             } catch (err: Throwable) {
                 _uiState.update { UiResult.Fail(err) }
