@@ -39,12 +39,18 @@ import id.gemeto.rasff.notifier.ui.theme.Typography
 import id.gemeto.rasff.notifier.ui.util.UiResult
 import id.gemeto.rasff.notifier.workers.NotifierWorker
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.util.Log
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,6 +60,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.concurrent.TimeUnit
 
@@ -92,6 +99,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
     RuntimePermissionsDialog(
@@ -101,34 +110,50 @@ fun HomeScreen(viewModel: HomeViewModel) {
     )
 
     val homeState = viewModel.uiState.collectAsStateWithLifecycle()
-
     when (val state = homeState.value) {
         is UiResult.Fail -> {
             Text(text = "Fatal error ocurred...")
         }
+
         UiResult.Loading -> {
             Box(modifier = Modifier.fillMaxSize()) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
         }
+
         is UiResult.Success -> {
-            Articles(data = state.data, viewModel = viewModel, onLoadMore = {
-                viewModel.loadMoreArticles()
-            })
+            val searchText by viewModel.searchText.collectAsState()
+            Scaffold(
+                bottomBar = {
+                    BottomAppBar(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextField(
+                            value = searchText,
+                            onValueChange = viewModel::onSearchTextChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text(text = "Buscar...") }
+                        )
+                    }
+                },
+                content = {
+                    Articles(data = state.data, viewModel = viewModel, onLoadMore = {
+                        viewModel.loadMoreArticles()
+                    })
+                }
+            )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit) {
     val context = LocalContext.current
-    val searchText by viewModel.searchText.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val listState = rememberLazyListState()
 
     LazyColumn(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 75.dp),
         contentPadding = PaddingValues(16.dp),
         state = listState
     ) {
@@ -146,12 +171,6 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                 Text(
                     data.description,
                     style = MaterialTheme.typography.bodyLarge
-                )
-                TextField(
-                    value = searchText,
-                    onValueChange = viewModel::onSearchTextChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(text = "search")}
                 )
                 /*if(isSearching){
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -177,7 +196,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         }
     }
-    AtricleLazyLoaderHandler(listState = listState, buffer = 1) {
+    AtricleLazyLoaderHandler(listState = listState, buffer = 1, viewModel = viewModel) {
         onLoadMore()
     }
 }
@@ -215,6 +234,7 @@ fun ArticleItem(item: Article, onItemClicked: (Article) -> Unit) {
 fun AtricleLazyLoaderHandler(
     listState: LazyListState,
     buffer: Int = 1,
+    viewModel: HomeViewModel,
     onLoadMore: () -> Unit
 ) {
     val loadMore = remember {
@@ -223,7 +243,14 @@ fun AtricleLazyLoaderHandler(
             val totalItemsNumber = layoutInfo.totalItemsCount
             val lastVisibleItemIndex = (layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)
             Log.d("CHECKING", "$lastVisibleItemIndex ; $totalItemsNumber")
-            totalItemsNumber > 10 && lastVisibleItemIndex >= (totalItemsNumber - buffer)
+            var result = false
+            if(viewModel.articlesLoaded){
+                viewModel.articlesLoaded = false
+                result = false
+            }else if(!viewModel.articlesLoading){
+                result = lastVisibleItemIndex >= (totalItemsNumber - buffer)
+            }
+            result
         }
     }
 

@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -29,11 +28,16 @@ class HomeViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<UiResult<HomeUiState>>(UiResult.Loading)
     private val _page = MutableStateFlow(1)
     private val _itemsPerPage = 10
+    var articlesLoading = false
+    var articlesLoaded = false
 
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
-        .onEach { _isSearching.update { true } }
+        //.onEach { _isSearching.update { /*true*/ false } } //TO DO change to true
         .combine(_uiState) { query, state ->
-            if(state is UiResult.Success && query.isNotEmpty()) {
+            if(!_isSearching.value && state is UiResult.Success && query.isNotEmpty()) {
+                /*while(state.data.articles.none{ it.title.contains(query, true) }) {
+                    loadMoreArticles()
+                }*/
                 UiResult.Success(
                     HomeUiState(state.data.title, state.data.link, state.data.description, state.data.articles.filter { it.title.contains(query, true) })
                 )
@@ -41,7 +45,7 @@ class HomeViewModel : ViewModel() {
                 state
             }
         }
-        .onEach { _isSearching.update { false } }
+        //.onEach { _isSearching.update { false } }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
@@ -78,16 +82,38 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 if(!_isSearching.value) {
+                    articlesLoading = true
                     _isSearching.update { true }
                     _page.value++
+                    val stateData = (_uiState.value as UiResult.Success<HomeUiState>).data
                     val home = withContext(Dispatchers.IO) {
-                        ((_uiState.value as UiResult.Success<HomeUiState>).data.articles as ArrayList).addAll(
+                        (stateData.articles as ArrayList).addAll(
                             cloudService.getHTMLArticles(_page.value, _itemsPerPage)
                         )
+                        while(searchText.value.isNotEmpty() && stateData.articles.count { it.title.contains(searchText.value, true) } < 4){
+                            _page.value++
+                            val newArticles = cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                            if(newArticles.isEmpty()){
+                                break;
+                            }
+                            (stateData.articles).addAll(
+                                newArticles
+                            )
+                        }
                         (_uiState.value as UiResult.Success<HomeUiState>).data
                     }
-                    _uiState.update { UiResult.Success(home) }
+                    if(searchText.value.isNotEmpty()){
+                        _uiState.update {
+                            UiResult.Success(
+                                HomeUiState(home.title, home.link, home.description, home.articles.filter { it.title.contains(searchText.value, true) })
+                            )
+                        }
+                    } else {
+                        _uiState.update { UiResult.Success(home) }
+                    }
                     _isSearching.update { false }
+                    articlesLoaded = true
+                    articlesLoading = false
                 }
             } catch (err: Throwable) {
                 _uiState.update { UiResult.Fail(err) }

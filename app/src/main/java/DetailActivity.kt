@@ -21,6 +21,7 @@ import id.gemeto.rasff.notifier.ui.theme.MyApplicationTheme
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import coil.compose.AsyncImage
@@ -57,7 +58,8 @@ fun DetailScreen(title: String?, description: String?, imageUrl: String?) {
                 modifier = Modifier.fillMaxWidth()
                     .wrapContentHeight()
                     .padding(18.dp)
-                    .wrapContentSize()
+                    .wrapContentSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     title ?: "",
