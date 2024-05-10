@@ -41,11 +41,7 @@ import id.gemeto.rasff.notifier.workers.NotifierWorker
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.util.Log
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.absoluteOffset
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.BottomAppBar
@@ -60,7 +56,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.Dp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.concurrent.TimeUnit
 
@@ -165,38 +160,35 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                     .padding(18.dp)
             ) {
                 Text(
-                    data.title,
-                    style = MaterialTheme.typography.titleLarge
+                    HomeViewModel.ViewConstants.TITLE,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .padding(18.dp, 18.dp)
                 )
                 Text(
-                    data.description,
+                    HomeViewModel.ViewConstants.DESCRIPTION,
                     style = MaterialTheme.typography.bodyLarge
                 )
-                /*if(isSearching){
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    }
-                }*/
             }
         }
-        //if(!isSearching) {
-            items(data.articles) { item ->
-                ArticleItem(item) { article ->
-                    val intent = Intent(context, DetailActivity::class.java)
-                    intent.putExtra("title", article.title)
-                    intent.putExtra("description", article.description)
-                    intent.putExtra("imageUrl", article.imageUrl)
-                    context.startActivity(intent)
-                }
+        items(data.articles) { item ->
+            ArticleItem(item) { article ->
+                val intent = Intent(context, DetailActivity::class.java)
+                intent.putExtra("title", article.title)
+                intent.putExtra("description", article.description)
+                intent.putExtra("imageUrl", article.imageUrl)
+                context.startActivity(intent)
             }
-        //}
+        }
     }
     if(isSearching){
         Box(modifier = Modifier.fillMaxSize()) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         }
     }
-    AtricleLazyLoaderHandler(listState = listState, buffer = 1, viewModel = viewModel) {
+    AtricleLazyLoaderHandler(listState = listState, buffer = 1) {
         onLoadMore()
     }
 }
@@ -234,7 +226,6 @@ fun ArticleItem(item: Article, onItemClicked: (Article) -> Unit) {
 fun AtricleLazyLoaderHandler(
     listState: LazyListState,
     buffer: Int = 1,
-    viewModel: HomeViewModel,
     onLoadMore: () -> Unit
 ) {
     val loadMore = remember {
@@ -242,15 +233,7 @@ fun AtricleLazyLoaderHandler(
             val layoutInfo = listState.layoutInfo
             val totalItemsNumber = layoutInfo.totalItemsCount
             val lastVisibleItemIndex = (layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)
-            Log.d("CHECKING", "$lastVisibleItemIndex ; $totalItemsNumber")
-            var result = false
-            if(viewModel.articlesLoaded){
-                viewModel.articlesLoaded = false
-                result = false
-            }else if(!viewModel.articlesLoading){
-                result = lastVisibleItemIndex >= (totalItemsNumber - buffer)
-            }
-            result
+            lastVisibleItemIndex >= (totalItemsNumber - buffer)
         }
     }
 

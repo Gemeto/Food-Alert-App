@@ -19,6 +19,7 @@ class CloudService(private val httpClient: HttpClient) {
         itemsPerPage: Int = 10, // TO DO use
         urlString: String = "https://webgate.ec.europa.eu/rasff-window/backend/public/consumer/rss/5010/"
     ): RssStandardChannel {
+        Log.d("FETCHING", "FETCHING RASFF")
         val response = httpClient.get(urlString).bodyAsText()
         return RssStandardParser().parse(response)
     }
@@ -34,7 +35,7 @@ class CloudService(private val httpClient: HttpClient) {
         val content = doc.select(".theContent p")
         val temp = content.drop(2).dropLast(1)
         val articles = ArrayList<Article>()
-        Log.d("FETCHING", "FETCHING")
+        Log.d("FETCHING", "FETCHING AESAN")
         content.clear()
         temp.toCollection(content)
         coroutineScope {

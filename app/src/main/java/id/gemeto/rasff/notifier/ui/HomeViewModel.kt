@@ -19,33 +19,48 @@ import kotlinx.coroutines.withContext
 class HomeViewModel : ViewModel() {
 
     /* todo: install dependency injection lib */
-    private val cloudService = CloudService(ktorClient)
-    private val uiMapper = HomeUiMapper()
+    private val _uiState = MutableStateFlow<UiResult<HomeUiState>>(UiResult.Loading)
+    private val stateCheckpoint = MutableStateFlow<UiResult<HomeUiState>>(UiResult.Loading)
+    private val _cloudService = CloudService(ktorClient)
+    private val _uiMapper = HomeUiMapper()
     private val _searchText = MutableStateFlow("")
     val searchText = _searchText.asStateFlow()
     private val _isSearching = MutableStateFlow(false)
     val isSearching = _isSearching.asStateFlow()
-    private val _uiState = MutableStateFlow<UiResult<HomeUiState>>(UiResult.Loading)
-    private val _page = MutableStateFlow(1)
-    private val _itemsPerPage = 10
-    var articlesLoading = false
-    var articlesLoaded = false
+    private val _page = MutableStateFlow(0)
+    private val _itemsPerPage = 4
+    private var _allArticlesLoaded = false
+
+    object ViewConstants {
+        const val TITLE = "Alertas alimentarias en España"
+        const val DESCRIPTION = "Hilo de alertas alimentarias en España notificadas por la aplicación RASFF y la web de la AESAN"
+    }
 
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
-        //.onEach { _isSearching.update { /*true*/ false } } //TO DO change to true
         .combine(_uiState) { query, state ->
             if(!_isSearching.value && state is UiResult.Success && query.isNotEmpty()) {
-                /*while(state.data.articles.none{ it.title.contains(query, true) }) {
-                    loadMoreArticles()
-                }*/
+                _isSearching.update { true }
+                val articles = (stateCheckpoint.value as UiResult.Success<HomeUiState>).data.articles.toMutableList()
+                while(!_allArticlesLoaded && articles.count { it.title.contains(searchText.value, true) } < _itemsPerPage){
+                    _page.value++
+                    val newArticles = _cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                    if(newArticles.isEmpty()){
+                        _allArticlesLoaded = true
+                        break;
+                    }
+                    (articles).addAll(newArticles)
+                }
+                val result = UiResult.Success(HomeUiState(ViewConstants.TITLE, state.data.link, ViewConstants.DESCRIPTION, articles))
+                stateCheckpoint.value = result
+                _uiState.update { result }
+                _isSearching.update { false }
                 UiResult.Success(
-                    HomeUiState(state.data.title, state.data.link, state.data.description, state.data.articles.filter { it.title.contains(query, true) })
+                    HomeUiState(ViewConstants.TITLE, state.data.link, ViewConstants.DESCRIPTION, articles.filter { it.title.contains(query, true) })
                 )
             }else{
                 state
             }
         }
-        //.onEach { _isSearching.update { false } }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
@@ -57,63 +72,53 @@ class HomeViewModel : ViewModel() {
     }
 
     init {
-        loadArticles()
-    }
-
-    private fun loadArticles() {
-        viewModelScope.launch {
-            try {
-                val home = withContext(Dispatchers.IO) {
-                    uiMapper.map(
-                        cloudService.getRSSArticles(_page.value, _itemsPerPage),
-                        cloudService.getHTMLArticles(_page.value, _itemsPerPage)
-                    )
-                }
-                _uiState.update {
-                    UiResult.Success(home)
-                }
-            } catch (err: Throwable) {
-                _uiState.update { UiResult.Fail(err) }
-            }
-        }
+        loadMoreArticles()
     }
 
     fun loadMoreArticles() {
         viewModelScope.launch {
             try {
-                if(!_isSearching.value) {
-                    articlesLoading = true
+                if(!_allArticlesLoaded && !_isSearching.value) {
                     _isSearching.update { true }
                     _page.value++
-                    val stateData = (_uiState.value as UiResult.Success<HomeUiState>).data
-                    val home = withContext(Dispatchers.IO) {
-                        (stateData.articles as ArrayList).addAll(
-                            cloudService.getHTMLArticles(_page.value, _itemsPerPage)
-                        )
-                        while(searchText.value.isNotEmpty() && stateData.articles.count { it.title.contains(searchText.value, true) } < 4){
-                            _page.value++
-                            val newArticles = cloudService.getHTMLArticles(_page.value, _itemsPerPage)
-                            if(newArticles.isEmpty()){
-                                break;
-                            }
-                            (stateData.articles).addAll(
-                                newArticles
+                    val home:HomeUiState
+                    if(stateCheckpoint.value !is UiResult.Success){
+                        home = withContext(Dispatchers.IO) {
+                            _uiMapper.map(
+                                _cloudService.getRSSArticles(_page.value, _itemsPerPage),
+                                _cloudService.getHTMLArticles(_page.value, _itemsPerPage)
                             )
                         }
-                        (_uiState.value as UiResult.Success<HomeUiState>).data
+                        stateCheckpoint.value = UiResult.Success(home)
+                    }else{
+                        val state = (stateCheckpoint.value as UiResult.Success<HomeUiState>).data
+                        val currentArticles = state.articles.count { it.title.contains(searchText.value, true) }
+                        home = withContext(Dispatchers.IO) {
+                            (state.articles as ArrayList).addAll(
+                                _cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                            )
+                            while(state.articles.count { it.title.contains(searchText.value, true) } <= currentArticles){
+                                _page.value++
+                                val newArticles = _cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                                if(newArticles.isEmpty()){
+                                    _allArticlesLoaded = true
+                                    break;
+                                }
+                                (state.articles).addAll(newArticles)
+                            }
+                            state
+                        }
                     }
                     if(searchText.value.isNotEmpty()){
                         _uiState.update {
                             UiResult.Success(
-                                HomeUiState(home.title, home.link, home.description, home.articles.filter { it.title.contains(searchText.value, true) })
+                                HomeUiState(ViewConstants.TITLE, home.link, ViewConstants.DESCRIPTION, home.articles.filter { it.title.contains(searchText.value, true) })
                             )
                         }
                     } else {
                         _uiState.update { UiResult.Success(home) }
                     }
                     _isSearching.update { false }
-                    articlesLoaded = true
-                    articlesLoading = false
                 }
             } catch (err: Throwable) {
                 _uiState.update { UiResult.Fail(err) }
