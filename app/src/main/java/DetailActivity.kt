@@ -21,8 +21,10 @@ import id.gemeto.rasff.notifier.ui.theme.MyApplicationTheme
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material3.Button
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextAlign
 import coil.compose.AsyncImage
 
@@ -33,6 +35,7 @@ class DetailActivity : ComponentActivity() {
         val title: String? = intent.getStringExtra("title")
         val description: String? = intent.getStringExtra("description")
         val imageUrl: String? = intent.getStringExtra("imageUrl")
+        val link: String? = intent.getStringExtra("link")
         setContent {
             MyApplicationTheme {
                 // A surface container using the 'background' color from the theme
@@ -40,7 +43,7 @@ class DetailActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    DetailScreen(title = title, description = description, imageUrl = imageUrl)
+                    DetailScreen(title = title, description = description, imageUrl = imageUrl, link = link)
                 }
             }
         }
@@ -48,7 +51,8 @@ class DetailActivity : ComponentActivity() {
 }
 
 @Composable
-fun DetailScreen(title: String?, description: String?, imageUrl: String?) {
+fun DetailScreen(title: String?, description: String?, imageUrl: String?, link: String?) {
+    val handler = LocalUriHandler.current
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(16.dp)
@@ -65,13 +69,22 @@ fun DetailScreen(title: String?, description: String?, imageUrl: String?) {
                     title ?: "",
                     style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center
-
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     description ?: "",
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center
+                )
+                Button(
+                    content = {
+                        Text("Abrir en el navegador")
+                    },
+                    onClick = {
+                        if(!link.isNullOrEmpty()) {
+                            handler.openUri(link)
+                        }
+                    }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 AsyncImage(
@@ -93,7 +106,7 @@ fun DetailPreview() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            DetailScreen(title = "title", description = "description", imageUrl = "https://i.stack.imgur.com/NTaY0.png")
+            DetailScreen(title = "title", description = "description", imageUrl = "https://i.stack.imgur.com/NTaY0.png", "")
         }
     }
 }

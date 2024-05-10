@@ -179,6 +179,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                 intent.putExtra("title", article.title)
                 intent.putExtra("description", article.description)
                 intent.putExtra("imageUrl", article.imageUrl)
+                intent.putExtra("link", article.link)
                 context.startActivity(intent)
             }
         }
