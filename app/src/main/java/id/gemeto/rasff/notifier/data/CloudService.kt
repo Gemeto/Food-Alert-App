@@ -56,7 +56,7 @@ class CloudService(private val httpClient: HttpClient) {
                             val articleDoc = Ksoup.parse(articleHtml)
                             val imageSrc = articleDoc.selectFirst("img")?.attr("src")
                             articles.add(Article(value.text(), content[index+1].text(), value.selectFirst("a")!!.attr("href"),
-                                if(!imageSrc.isNullOrEmpty() && imageSrc.contains("aesan.gob.es", true)) { domain + imageSrc } else CloudServiceConstants.NO_IMAGE_URL))
+                                if(!imageSrc.isNullOrEmpty() && link.contains("aesan.gob.es", true)) { domain + imageSrc } else CloudServiceConstants.NO_IMAGE_URL))
                         }
                     }catch(_: Exception){
 
