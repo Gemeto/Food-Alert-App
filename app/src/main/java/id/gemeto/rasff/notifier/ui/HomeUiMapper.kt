@@ -6,6 +6,7 @@ import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
+import id.gemeto.rasff.notifier.data.CloudService
 import tw.ktrssreader.kotlin.model.channel.RssStandardChannel
 import tw.ktrssreader.kotlin.model.item.RssStandardItem
 
@@ -35,7 +36,7 @@ class HomeUiMapper {
                     translateText(Html.fromHtml(article.description, Html.FROM_HTML_MODE_COMPACT).toString())
                 } else "",
                 link = article.link.orEmpty(),
-                imageUrl = article.enclosure?.url.orEmpty(),
+                imageUrl = CloudService.CloudServiceConstants.NO_IMAGE_URL,
             )
         }
     }

@@ -160,7 +160,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                     .padding(18.dp)
             ) {
                 Text(
-                    HomeViewModel.ViewConstants.TITLE,
+                    HomeViewModel.HomeViewConstants.TITLE,
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier
                     .fillMaxWidth()
@@ -168,7 +168,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                     .padding(18.dp, 18.dp)
                 )
                 Text(
-                    HomeViewModel.ViewConstants.DESCRIPTION,
+                    HomeViewModel.HomeViewConstants.DESCRIPTION,
                     style = MaterialTheme.typography.bodyLarge
                 )
             }

@@ -13,6 +13,9 @@ import tw.ktrssreader.kotlin.parser.RssStandardParser
 import java.util.ArrayList
 
 class CloudService(private val httpClient: HttpClient) {
+    object CloudServiceConstants {
+        const val NO_IMAGE_URL = "https://media.istockphoto.com/id/887464786/vector/no-cameras-allowed-sign-flat-icon-in-red-crossed-out-circle-vector.jpg?s=612x612&w=0&k=20&c=LVkPMBiZas8zxBPmhEApCv3UiYjcbYZJsO-CVQjAJeU="
+    }
 
     suspend fun getRSSArticles(
         page: Int = 1, //TO DO use
@@ -49,12 +52,11 @@ class CloudService(private val httpClient: HttpClient) {
                             if (!link.contains("http")) {
                                 link = domain + link
                             }
-                            val articleHtml = httpClient.get(
-                                link
-                            ).bodyAsText()
+                            val articleHtml = httpClient.get(link).bodyAsText()
                             val articleDoc = Ksoup.parse(articleHtml)
                             val imageSrc = articleDoc.selectFirst("img")?.attr("src")
-                            articles.add(Article(value.text(), content[index+1].text(), value.selectFirst("a")!!.attr("href"), if(imageSrc != null) { domain + imageSrc } else ""))
+                            articles.add(Article(value.text(), content[index+1].text(), value.selectFirst("a")!!.attr("href"),
+                                if(!imageSrc.isNullOrEmpty() && imageSrc.contains("aesan.gob.es", true)) { domain + imageSrc } else CloudServiceConstants.NO_IMAGE_URL))
                         }
                     }catch(_: Exception){
 

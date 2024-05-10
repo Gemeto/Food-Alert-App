@@ -28,12 +28,12 @@ class HomeViewModel : ViewModel() {
     private val _isSearching = MutableStateFlow(false)
     val isSearching = _isSearching.asStateFlow()
     private val _page = MutableStateFlow(0)
-    private val _itemsPerPage = 4
     private var _allArticlesLoaded = false
 
-    object ViewConstants {
+    object HomeViewConstants {
         const val TITLE = "Alertas alimentarias en España"
         const val DESCRIPTION = "Hilo de alertas alimentarias en España notificadas por la aplicación RASFF y la web de la AESAN"
+        const val ITEMS_PER_PAGE = 2
     }
 
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
@@ -41,21 +41,21 @@ class HomeViewModel : ViewModel() {
             if(!_isSearching.value && state is UiResult.Success && query.isNotEmpty()) {
                 _isSearching.update { true }
                 val articles = (stateCheckpoint.value as UiResult.Success<HomeUiState>).data.articles.toMutableList()
-                while(!_allArticlesLoaded && articles.count { it.title.contains(searchText.value, true) } < _itemsPerPage){
+                while(!_allArticlesLoaded && articles.count { it.title.contains(searchText.value, true) } < HomeViewConstants.ITEMS_PER_PAGE){
                     _page.value++
-                    val newArticles = _cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                    val newArticles = _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
                     if(newArticles.isEmpty()){
                         _allArticlesLoaded = true
                         break;
                     }
                     (articles).addAll(newArticles)
                 }
-                val result = UiResult.Success(HomeUiState(ViewConstants.TITLE, state.data.link, ViewConstants.DESCRIPTION, articles))
+                val result = UiResult.Success(HomeUiState(HomeViewConstants.TITLE, state.data.link, HomeViewConstants.DESCRIPTION, articles))
                 stateCheckpoint.value = result
                 _uiState.update { result }
                 _isSearching.update { false }
                 UiResult.Success(
-                    HomeUiState(ViewConstants.TITLE, state.data.link, ViewConstants.DESCRIPTION, articles.filter { it.title.contains(query, true) })
+                    HomeUiState(HomeViewConstants.TITLE, state.data.link, HomeViewConstants.DESCRIPTION, articles.filter { it.title.contains(query, true) })
                 )
             }else{
                 state
@@ -85,8 +85,8 @@ class HomeViewModel : ViewModel() {
                     if(stateCheckpoint.value !is UiResult.Success){
                         home = withContext(Dispatchers.IO) {
                             _uiMapper.map(
-                                _cloudService.getRSSArticles(_page.value, _itemsPerPage),
-                                _cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                                _cloudService.getRSSArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE),
+                                _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
                             )
                         }
                         stateCheckpoint.value = UiResult.Success(home)
@@ -95,11 +95,11 @@ class HomeViewModel : ViewModel() {
                         val currentArticles = state.articles.count { it.title.contains(searchText.value, true) }
                         home = withContext(Dispatchers.IO) {
                             (state.articles as ArrayList).addAll(
-                                _cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                                _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
                             )
                             while(state.articles.count { it.title.contains(searchText.value, true) } <= currentArticles){
                                 _page.value++
-                                val newArticles = _cloudService.getHTMLArticles(_page.value, _itemsPerPage)
+                                val newArticles = _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
                                 if(newArticles.isEmpty()){
                                     _allArticlesLoaded = true
                                     break;
@@ -112,7 +112,7 @@ class HomeViewModel : ViewModel() {
                     if(searchText.value.isNotEmpty()){
                         _uiState.update {
                             UiResult.Success(
-                                HomeUiState(ViewConstants.TITLE, home.link, ViewConstants.DESCRIPTION, home.articles.filter { it.title.contains(searchText.value, true) })
+                                HomeUiState(HomeViewConstants.TITLE, home.link, HomeViewConstants.DESCRIPTION, home.articles.filter { it.title.contains(searchText.value, true) })
                             )
                         }
                     } else {
