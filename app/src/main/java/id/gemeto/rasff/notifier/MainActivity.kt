@@ -42,8 +42,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.util.Log
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -60,7 +58,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.concurrent.TimeUnit
 
@@ -70,13 +67,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val constraints =
-            Constraints.Builder()
+        val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
-        val notifierWorkRequest =
-            PeriodicWorkRequestBuilder<NotifierWorker>(15, TimeUnit.MINUTES)
+        val notifierWorkRequest = PeriodicWorkRequestBuilder<NotifierWorker>(15, TimeUnit.MINUTES)
                 .setInitialDelay(24, TimeUnit.SECONDS)
                 .setConstraints(constraints)
                 .build()
@@ -103,16 +97,19 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
-    RuntimePermissionsDialog(
-        Manifest.permission.POST_NOTIFICATIONS,
-        onPermissionDenied = {},
-        onPermissionGranted = {},
-    )
+    if(Build.VERSION.SDK_INT > 32){
+        RuntimePermissionsDialog(
+            Manifest.permission.POST_NOTIFICATIONS,
+            onPermissionDenied = {},
+            onPermissionGranted = {},
+        )
+    }
 
     val homeState = viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     when (val state = homeState.value) {
         is UiResult.Fail -> {
-            Text(text = "Fatal error ocurred...")
+            Text(text = "Fatal error..")
         }
         is UiResult.Loading -> {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -189,7 +186,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         }
     }
-    AtricleLazyLoaderHandler(listState = listState, buffer = 1) {
+    LazyListLoaderHandler(listState = listState, buffer = 1) {
         onLoadMore()
     }
 }
@@ -224,7 +221,7 @@ fun ArticleItem(item: Article, onItemClicked: (Article) -> Unit) {
 }
 
 @Composable
-fun AtricleLazyLoaderHandler(
+fun LazyListLoaderHandler(
     listState: LazyListState,
     buffer: Int = 1,
     onLoadMore: () -> Unit
