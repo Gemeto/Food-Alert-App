@@ -41,10 +41,14 @@ import id.gemeto.rasff.notifier.workers.NotifierWorker
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.util.Log
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextField
@@ -56,6 +60,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.concurrent.TimeUnit
 
@@ -109,13 +114,11 @@ fun HomeScreen(viewModel: HomeViewModel) {
         is UiResult.Fail -> {
             Text(text = "Fatal error ocurred...")
         }
-
-        UiResult.Loading -> {
+        is UiResult.Loading -> {
             Box(modifier = Modifier.fillMaxSize()) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
         }
-
         is UiResult.Success -> {
             val searchText by viewModel.searchText.collectAsState()
             Scaffold(
@@ -144,6 +147,7 @@ fun HomeScreen(viewModel: HomeViewModel) {
 @Composable
 fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit) {
     val context = LocalContext.current
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val listState = rememberLazyListState()
 
@@ -154,18 +158,12 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
     ) {
         item {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight()
-                    .padding(18.dp)
+                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(18.dp)
             ) {
                 Text(
                     HomeViewModel.HomeViewConstants.TITLE,
                     style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight()
-                    .padding(18.dp, 18.dp)
+                    modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(18.dp, 18.dp)
                 )
                 Text(
                     HomeViewModel.HomeViewConstants.DESCRIPTION,
@@ -173,18 +171,20 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                 )
             }
         }
-        items(data.articles) { item ->
-            ArticleItem(item) { article ->
-                val intent = Intent(context, DetailActivity::class.java)
-                intent.putExtra("title", article.title)
-                intent.putExtra("description", article.description)
-                intent.putExtra("imageUrl", article.imageUrl)
-                intent.putExtra("link", article.link)
-                context.startActivity(intent)
+        if(!isSearching) {
+            items(data.articles) { item ->
+                ArticleItem(item) { article ->
+                    val intent = Intent(context, DetailActivity::class.java)
+                    intent.putExtra("title", article.title)
+                    intent.putExtra("description", article.description)
+                    intent.putExtra("imageUrl", article.imageUrl)
+                    intent.putExtra("link", article.link)
+                    context.startActivity(intent)
+                }
             }
         }
     }
-    if(isSearching){
+    if(isLoadingMore || isSearching){
         Box(modifier = Modifier.fillMaxSize()) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         }
@@ -234,15 +234,16 @@ fun AtricleLazyLoaderHandler(
             val layoutInfo = listState.layoutInfo
             val totalItemsNumber = layoutInfo.totalItemsCount
             val lastVisibleItemIndex = (layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0)
+            Log.d("CHECKING", "$lastVisibleItemIndex : $totalItemsNumber")
             lastVisibleItemIndex >= (totalItemsNumber - buffer)
         }
     }
-
     LaunchedEffect(loadMore) {
         snapshotFlow{ loadMore.value }
             .distinctUntilChanged()
             .collect {
                 if(loadMore.value){
+                    Log.d("LOAD MORE", "LOAD MORE")
                     onLoadMore()
                 }
             }
