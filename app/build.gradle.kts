@@ -69,10 +69,13 @@ dependencies {
 
     implementation("io.ktor:ktor-client-cio:2.3.11")
     implementation("com.github.ivanisidrowu.KtRssReader:kotlin:v2.2.1")
+
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("androidx.camera:camera-lifecycle:1.3.3")
     val room_version = "2.6.1"
     implementation("androidx.room:room-runtime:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
+
     val ksoup_version = "0.1.2"
     implementation("com.fleeksoft.ksoup:ksoup:$ksoup_version")
     implementation("com.google.mlkit:translate:17.0.2")

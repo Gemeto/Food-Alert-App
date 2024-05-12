@@ -33,12 +33,13 @@ class CloudService(private val httpClient: HttpClient) {
         urlString: String = "https://www.aesan.gob.es/AECOSAN/web/seguridad_alimentaria/subseccion/otras_alertas_alimentarias.htm"
     ): List<Article> {
         val domain = "https://www.aesan.gob.es"
+        Log.d("FETCHING", "FETCHING AESAN SITE")
         val html = httpClient.get(urlString).bodyAsText()
         val doc = Ksoup.parse(html)
         val content = doc.select(".theContent p")
         val temp = content.drop(2).dropLast(1)
         val articles = ArrayList<Article>()
-        Log.d("FETCHING", "FETCHING AESAN")
+        Log.d("FETCHING", "FETCHING AESAN PAGE")
         content.clear()
         temp.toCollection(content)
         coroutineScope {

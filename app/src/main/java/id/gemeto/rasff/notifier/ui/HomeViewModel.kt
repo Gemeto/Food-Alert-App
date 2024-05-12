@@ -33,11 +33,24 @@ class HomeViewModel : ViewModel() {
     val isLoadingMore = _isLoadingMore.asStateFlow()
     private val _page = MutableStateFlow(0)
     private var _allArticlesLoaded = false
+    //Objects and functions
+    object HomeViewConstants {
+        const val TITLE = "Alertas alimentarias en España"
+        const val DESCRIPTION = "Hilo de alertas alimentarias en España notificadas por la aplicación RASFF y la web de la AESAN"
+        const val ITEMS_PER_PAGE = 3 //TO DO MAKE DYNAMIC BASED ON VIEWPORT
+    }
+    private fun canLoad(): Boolean = !_allArticlesLoaded && !_isSearching.value
+            && !_isLoadingMore.value && _uiStateUnfiltered.value is UiResult.Success
+    private fun canLoadMore(articles: List<Article>, currentItems: Int): Boolean  = !_isSearching.value
+            && articles.count { it.title.contains(searchText.value, true) } < (currentItems + HomeViewConstants.ITEMS_PER_PAGE)
+    private fun canLoadMoreSearching(articles: List<Article>): Boolean  = !_allArticlesLoaded
+            && articles.count { it.title.contains(searchText.value, true) } < HomeViewConstants.ITEMS_PER_PAGE
+
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
         .onEach { _isSearching.update { true } }
-        .combine(_uiStateUnfiltered) { query, state ->
+        .combine(_uiState) { query, state ->
             if(state is UiResult.Success && query.isNotEmpty()) {
-                val articles = state.data.articles.toMutableList()
+                val articles = (_uiStateUnfiltered.value as UiResult.Success<HomeUiState>).data.articles.toMutableList()
                 while(canLoadMoreSearching(articles)){
                     _page.value++
                     val newArticles = _cloudService.getHTMLArticles(
@@ -66,17 +79,6 @@ class HomeViewModel : ViewModel() {
             SharingStarted.WhileSubscribed(5000),
             _uiState.value
         )
-    //Objects and functions
-    object HomeViewConstants {
-        const val TITLE = "Alertas alimentarias en España"
-        const val DESCRIPTION = "Hilo de alertas alimentarias en España notificadas por la aplicación RASFF y la web de la AESAN"
-        const val ITEMS_PER_PAGE = 3 //TO DO MAKE DYNAMIC BASED ON VIEWPORT
-    }
-    private fun canLoad(): Boolean = !_allArticlesLoaded && !_isSearching.value && !_isLoadingMore.value && _uiStateUnfiltered.value is UiResult.Success
-    private fun canLoadMore(articles: List<Article>, currentItems: Int): Boolean  = !_isSearching.value
-            && articles.count { it.title.contains(searchText.value, true) } < (currentItems + HomeViewConstants.ITEMS_PER_PAGE)
-    private fun canLoadMoreSearching(articles: List<Article>): Boolean  = !_allArticlesLoaded && articles.count { it.title.contains(searchText.value, true) } < HomeViewConstants.ITEMS_PER_PAGE
-
     init {
         viewModelScope.launch {
             try {
@@ -87,6 +89,7 @@ class HomeViewModel : ViewModel() {
                     )
                 }
                 _uiStateUnfiltered.value = UiResult.Success(home)
+                _uiState.update { UiResult.Success(home) }
             }catch (err: Throwable) {
                 _uiState.update { UiResult.Fail(err) }
             }

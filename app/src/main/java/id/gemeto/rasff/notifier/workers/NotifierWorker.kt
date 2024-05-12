@@ -15,7 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.room.Room
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import id.gemeto.rasff.notifier.MainActivity
+import id.gemeto.rasff.notifier.ui.view.MainActivity
 import id.gemeto.rasff.notifier.R
 import id.gemeto.rasff.notifier.data.AppDatabase
 import id.gemeto.rasff.notifier.data.CloudService

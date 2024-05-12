@@ -1,4 +1,4 @@
-package id.gemeto.rasff.notifier
+package id.gemeto.rasff.notifier.ui.view
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

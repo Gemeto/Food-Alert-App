@@ -1,4 +1,4 @@
-package id.gemeto.rasff.notifier
+package id.gemeto.rasff.notifier.ui.view
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -41,8 +41,10 @@ import id.gemeto.rasff.notifier.workers.NotifierWorker
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.BottomAppBar
@@ -70,7 +72,7 @@ class MainActivity : ComponentActivity() {
         val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
-        val notifierWorkRequest = PeriodicWorkRequestBuilder<NotifierWorker>(15, TimeUnit.MINUTES)
+        val notifierWorkRequest = PeriodicWorkRequestBuilder<NotifierWorker>(1, TimeUnit.HOURS)
                 .setInitialDelay(24, TimeUnit.SECONDS)
                 .setConstraints(constraints)
                 .build()
@@ -99,7 +101,7 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(viewModel: HomeViewModel) {
     if(Build.VERSION.SDK_INT > 32){
         RuntimePermissionsDialog(
-            Manifest.permission.POST_NOTIFICATIONS,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
             onPermissionDenied = {},
             onPermissionGranted = {},
         )
@@ -155,7 +157,8 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
     ) {
         item {
             Column(
-                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(18.dp)
+                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     HomeViewModel.HomeViewConstants.TITLE,
@@ -165,6 +168,16 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                 Text(
                     HomeViewModel.HomeViewConstants.DESCRIPTION,
                     style = MaterialTheme.typography.bodyLarge
+                )
+                Button(
+                    content = { Text("Toma una foto de tu lista de la compra!") },
+                    modifier = Modifier.fillMaxHeight(),
+                    onClick = {
+                        val intent = Intent(context, CameraActivity::class.java)
+                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        //intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        context.startActivity(intent)
+                    }
                 )
             }
         }
