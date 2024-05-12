@@ -15,7 +15,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "RASFF RSS notifier"
+rootProject.name = "Food Alert Notifier"
 
 include(":app")
  

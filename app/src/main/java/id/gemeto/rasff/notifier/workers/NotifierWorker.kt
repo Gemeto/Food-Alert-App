@@ -33,7 +33,7 @@ class NotifierWorker(private val appContext: Context, params: WorkerParameters) 
         val responseHTML = cloudService.getHTMLArticles()
         val db = Room.databaseBuilder(
             applicationContext,
-            AppDatabase::class.java, "database-rasff-notifications"
+            AppDatabase::class.java, "database-alert-notifications"
         ).build()
         val lastNotifiedDao = db.lastNotifiedDao()
         val lastNotified: LastNotified? = lastNotifiedDao.getOne()
