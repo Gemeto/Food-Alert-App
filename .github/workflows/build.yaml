@@ -24,7 +24,7 @@ jobs:
         id: create-pre-release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKENE }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
           tag_name: latest-prerelease
           release_name: Automatic Pre-release
