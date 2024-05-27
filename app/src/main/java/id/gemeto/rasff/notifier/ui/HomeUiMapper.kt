@@ -44,15 +44,13 @@ class HomeUiMapper {
     private fun translateText(text: String): String {
         Tasks.await(
             englishSpanishTranslator.downloadModelIfNeeded(translatorConditions)
-            .addOnSuccessListener {}
-            .addOnFailureListener {}
+                .addOnSuccessListener {}
+                .addOnFailureListener {}
         )
-        val result: String = Tasks.await(
+        return Tasks.await(
             englishSpanishTranslator.translate(text)
-                .addOnSuccessListener { translated ->
-                    translated
-                }.addOnFailureListener {}
+                .addOnSuccessListener {}
+                .addOnFailureListener {}
         )
-        return result
     }
 }
