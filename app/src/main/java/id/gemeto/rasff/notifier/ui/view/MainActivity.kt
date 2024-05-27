@@ -272,9 +272,6 @@ fun HomePreview() {
         Articles(
             viewModel = HomeViewModel(),
             data = HomeUiState(
-                title = "Dave Leeds on Kotlin - typealias.com",
-                link = "https://typealias.com/",
-                description = "Recent content about Kotlin programming on typealias.com",
                 articles = List(5) {
                     Article(
                         "Data Classes and Destructuring",

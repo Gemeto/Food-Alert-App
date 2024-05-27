@@ -8,8 +8,6 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import tw.ktrssreader.kotlin.model.channel.RssStandardChannel
-import tw.ktrssreader.kotlin.parser.RssStandardParser
 import java.util.ArrayList
 
 class CloudService(private val httpClient: HttpClient) {
@@ -19,10 +17,25 @@ class CloudService(private val httpClient: HttpClient) {
 
     suspend fun getRSSArticles(
         urlString: String = "https://webgate.ec.europa.eu/rasff-window/backend/public/consumer/rss/5010/"
-    ): RssStandardChannel {
-        Log.d("FETCHING", "FETCHING RASFF")
-        val response = httpClient.get(urlString).bodyAsText()
-        return RssStandardParser().parse(response)
+    ): List<Article> {
+        Log.d("FETCHING", "FETCHING RASFF SITE")
+        val html = httpClient.get(urlString).bodyAsText()
+        val doc = Ksoup.parse(html)
+        val content = doc.select("item")
+        val articles = ArrayList<Article>()
+        Log.d("FETCHING", "FETCHING RASFF PAGE")
+        coroutineScope {
+            content.forEachIndexed { index, value ->
+                async {
+                    try {
+                        articles.add(Article(value.select("title").text(), value.select("description").text(), value.select("link").text(), CloudServiceConstants.NO_IMAGE_URL))
+                    }catch(_: Exception){
+
+                    }
+                }.await()
+            }
+        }
+        return articles
     }
 
     suspend fun getHTMLArticles(

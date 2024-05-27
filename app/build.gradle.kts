@@ -64,11 +64,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("io.coil-kt:coil-compose:2.2.2")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
-
-    implementation("io.ktor:ktor-client-cio:2.3.11")
-    implementation("com.github.ivanisidrowu.KtRssReader:kotlin:v2.2.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("androidx.camera:camera-lifecycle:1.3.3")
@@ -76,8 +73,8 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
 
-    val ksoup_version = "0.1.2"
-    implementation("com.fleeksoft.ksoup:ksoup:$ksoup_version")
+    implementation("io.ktor:ktor-client-cio:2.3.11")
+    implementation("com.fleeksoft.ksoup:ksoup:0.1.2")
     implementation("com.google.mlkit:translate:17.0.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

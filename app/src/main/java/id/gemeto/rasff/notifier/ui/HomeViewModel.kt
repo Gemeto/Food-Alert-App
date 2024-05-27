@@ -63,11 +63,11 @@ class HomeViewModel : ViewModel() {
                     }
                     (articles).addAll(newArticles)
                 }
-                val result = UiResult.Success(HomeUiState(HomeViewConstants.TITLE, state.data.link, HomeViewConstants.DESCRIPTION, articles))
+                val result = UiResult.Success(HomeUiState(articles))
                 _uiStateUnfiltered.value = result
                 _uiState.update { result }
                 UiResult.Success(
-                    HomeUiState(HomeViewConstants.TITLE, state.data.link, HomeViewConstants.DESCRIPTION, articles.filter { it.title.contains(query, true) })
+                    HomeUiState(articles.filter { it.title.contains(query, true) })
                 )
             }else{
                 state
@@ -84,8 +84,8 @@ class HomeViewModel : ViewModel() {
             try {
                 val home = withContext(Dispatchers.IO) {
                     _uiMapper.map(
-                        _cloudService.getRSSArticles(),
-                        _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
+                        _cloudService.getRSSArticles()
+                        .plus(_cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE))
                     )
                 }
                 _uiStateUnfiltered.value = UiResult.Success(home)
@@ -121,7 +121,7 @@ class HomeViewModel : ViewModel() {
                     if(searchText.value.isNotEmpty()){
                         _uiState.update {
                             UiResult.Success(
-                                HomeUiState(HomeViewConstants.TITLE, home.link, HomeViewConstants.DESCRIPTION, home.articles.filter { it.title.contains(searchText.value, true) })
+                                HomeUiState(home.articles.filter { it.title.contains(searchText.value, true) })
                             )
                         }
                     } else {

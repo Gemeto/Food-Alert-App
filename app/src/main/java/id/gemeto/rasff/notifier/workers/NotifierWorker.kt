@@ -37,7 +37,7 @@ class NotifierWorker(private val appContext: Context, params: WorkerParameters) 
         ).build()
         val lastNotifiedDao = db.lastNotifiedDao()
         val lastNotified: LastNotified? = lastNotifiedDao.getOne()
-        val containsLastRssItem = lastNotified == null || lastNotified.firstItemTitle?.contains(responseRSS.items?.first()?.title.orEmpty()) == false
+        val containsLastRssItem = lastNotified == null || lastNotified.firstItemTitle?.contains(responseRSS.first().title) == false
         val containsLastHTMLItem = lastNotified == null || lastNotified.firstItemTitle?.contains(responseHTML.first().title) == false
         if(containsLastRssItem || containsLastHTMLItem){
             if (ActivityCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
@@ -47,7 +47,7 @@ class NotifierWorker(private val appContext: Context, params: WorkerParameters) 
                 if(lastNotified != null) {
                     lastNotifiedDao.delete(lastNotified)
                 }
-                lastNotifiedDao.insert(LastNotified(UUID.randomUUID().toString(), responseRSS.items?.first()?.title.orEmpty() + responseHTML.first().title))
+                lastNotifiedDao.insert(LastNotified(UUID.randomUUID().toString(), responseRSS.first().title + responseHTML.first().title))
                 return Result.success()
             }
             return Result.retry()

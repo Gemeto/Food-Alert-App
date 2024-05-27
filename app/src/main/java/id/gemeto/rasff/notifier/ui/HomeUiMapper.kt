@@ -1,14 +1,10 @@
 package id.gemeto.rasff.notifier.ui
 
-import android.text.Html
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
-import id.gemeto.rasff.notifier.data.CloudService
-import tw.ktrssreader.kotlin.model.channel.RssStandardChannel
-import tw.ktrssreader.kotlin.model.item.RssStandardItem
 
 class HomeUiMapper {
 
@@ -19,26 +15,12 @@ class HomeUiMapper {
     private val englishSpanishTranslator = Translation.getClient(translatorOptions)
     private val translatorConditions = DownloadConditions.Builder().build()
 
-    fun map(responseRSS: RssStandardChannel, responseHTML: List<Article>): HomeUiState {
+    fun map(articles: List<Article>): HomeUiState {
         return HomeUiState(
-            title = responseRSS.title.orEmpty(),
-            link = responseRSS.link.orEmpty(),
-            description = responseRSS.description.orEmpty(),
-            articles = mapArticle(responseRSS.items.orEmpty()).plus(responseHTML)
+            articles = articles.map { item ->
+                Article(translateText(item.title), translateText(item.description), item.link, item.imageUrl)
+            }
         )
-    }
-
-    private fun mapArticle(response: List<RssStandardItem>): List<Article> {
-        return response.map { article ->
-            Article(
-                title = translateText(article.title.orEmpty()),
-                description = if (article.description != null) {
-                    translateText(Html.fromHtml(article.description, Html.FROM_HTML_MODE_COMPACT).toString())
-                } else "",
-                link = article.link.orEmpty(),
-                imageUrl = CloudService.CloudServiceConstants.NO_IMAGE_URL,
-            )
-        }
     }
 
     private fun translateText(text: String): String {
