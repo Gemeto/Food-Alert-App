@@ -1,6 +1,6 @@
 name: Build
 on:
-  push:
+  create:
     tags:
       - 'prerelease-v*.*.*'
 
@@ -20,7 +20,7 @@ jobs:
       - name: Build the app
         run: ./gradlew build
       - name: Upload APK to Github Artifacts
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: app
           path: app/build/outputs/apk/debug/app-debug.apk
@@ -44,4 +44,4 @@ jobs:
           upload_url: ${{ steps.create-pre-release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
           asset_path: ./app/build/outputs/apk/debug/app-debug.apk
           asset_name: app-debug.apk
-          asset_content_type: application/apk
+          asset_content_type: application/zip
