@@ -18,8 +18,6 @@ class CloudService(private val httpClient: HttpClient) {
     }
 
     suspend fun getRSSArticles(
-        page: Int = 1, //TO DO use
-        itemsPerPage: Int = 10, // TO DO use
         urlString: String = "https://webgate.ec.europa.eu/rasff-window/backend/public/consumer/rss/5010/"
     ): RssStandardChannel {
         Log.d("FETCHING", "FETCHING RASFF")

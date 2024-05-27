@@ -42,22 +42,16 @@ class HomeUiMapper {
     }
 
     private fun translateText(text: String): String {
-        var result = ""
         Tasks.await(
             englishSpanishTranslator.downloadModelIfNeeded(translatorConditions)
-            .addOnSuccessListener {
-
-            }.addOnFailureListener { exception ->
-
-            }
+            .addOnSuccessListener {}
+            .addOnFailureListener {}
         )
-        result = Tasks.await(
+        val result: String = Tasks.await(
             englishSpanishTranslator.translate(text)
                 .addOnSuccessListener { translated ->
                     translated
-                }.addOnFailureListener { exception ->
-
-                }
+                }.addOnFailureListener {}
         )
         return result
     }

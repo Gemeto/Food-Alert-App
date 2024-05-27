@@ -43,12 +43,11 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextField
@@ -69,19 +68,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
-        val notifierWorkRequest = PeriodicWorkRequestBuilder<NotifierWorker>(1, TimeUnit.HOURS)
-                .setInitialDelay(24, TimeUnit.SECONDS)
-                .setConstraints(constraints)
-                .build()
-        val workManager = WorkManager.getInstance(this)
-        workManager.enqueueUniquePeriodicWork(
-            "NotifierWorker",
-            ExistingPeriodicWorkPolicy.UPDATE,
-            notifierWorkRequest,
-        )
+        initWorkers()
         setContent {
             MyApplicationTheme {
                 Surface(
@@ -93,25 +80,43 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun initWorkers() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val notifierWorkRequest = PeriodicWorkRequestBuilder<NotifierWorker>(12, TimeUnit.HOURS)
+            .setConstraints(constraints)
+            .build()
+        val workManager = WorkManager.getInstance(this)
+        workManager.enqueueUniquePeriodicWork(
+            "NotifierWorker",
+            ExistingPeriodicWorkPolicy.KEEP,
+            notifierWorkRequest,
+        )
+    }
 }
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
+    val context = LocalContext.current
+    val homeState = viewModel.uiState.collectAsStateWithLifecycle()
     if(Build.VERSION.SDK_INT > 32){
         RuntimePermissionsDialog(
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            onPermissionDenied = {},
-            onPermissionGranted = {},
+            Manifest.permission.POST_NOTIFICATIONS,
+            onPermissionDenied = {
+                Toast.makeText(context, "Notifications Permission Granted", Toast.LENGTH_SHORT).show()
+            },
+            onPermissionGranted = {
+                Toast.makeText(context, "Notifications Permission Denied", Toast.LENGTH_SHORT).show()
+            },
         )
     }
-
-    val homeState = viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     when (val state = homeState.value) {
         is UiResult.Fail -> {
-            Text(text = "Fatal error..")
+            Text(text = "FATAL ERROR")
         }
         is UiResult.Loading -> {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -169,7 +174,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                     HomeViewModel.HomeViewConstants.DESCRIPTION,
                     style = MaterialTheme.typography.bodyLarge
                 )
-                Button(
+                /*Button(
                     content = { Text("Toma una foto de tu lista de la compra!") },
                     modifier = Modifier.fillMaxHeight(),
                     onClick = {
@@ -178,7 +183,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                         //intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                         context.startActivity(intent)
                     }
-                )
+                ) TO DO implement camera search function*/
             }
         }
         if(!isSearching) {

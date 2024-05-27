@@ -59,7 +59,7 @@ class HomeViewModel : ViewModel() {
                     )
                     if(newArticles.isEmpty()){
                         _allArticlesLoaded = true
-                        break;
+                        break
                     }
                     (articles).addAll(newArticles)
                 }
@@ -84,7 +84,7 @@ class HomeViewModel : ViewModel() {
             try {
                 val home = withContext(Dispatchers.IO) {
                     _uiMapper.map(
-                        _cloudService.getRSSArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE),
+                        _cloudService.getRSSArticles(),
                         _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
                     )
                 }
@@ -111,7 +111,7 @@ class HomeViewModel : ViewModel() {
                             val newArticles = _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
                             if(newArticles.isEmpty()){
                                 _allArticlesLoaded = true
-                                break;
+                                break
                             }
                             (state.articles).addAll(newArticles)
                         }

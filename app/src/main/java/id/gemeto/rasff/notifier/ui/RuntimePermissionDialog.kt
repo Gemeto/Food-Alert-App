@@ -1,7 +1,6 @@
 package id.gemeto.rasff.notifier.ui
 
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -15,28 +14,25 @@ fun RuntimePermissionsDialog(
     onPermissionGranted: () -> Unit,
     onPermissionDenied: () -> Unit,
 ) {
+    if (ContextCompat.checkSelfPermission(
+            LocalContext.current,
+            permission) != PackageManager.PERMISSION_GRANTED) {
 
-    if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val requestLocationPermissionLauncher =
+            rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted: Boolean ->
 
-        if (ContextCompat.checkSelfPermission(
-                LocalContext.current,
-                permission) != PackageManager.PERMISSION_GRANTED) {
-
-            val requestLocationPermissionLauncher =
-                rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestPermission()
-                ) { isGranted: Boolean ->
-
-                    if (isGranted) {
-                        onPermissionGranted()
-                    } else {
-                        onPermissionDenied()
-                    }
+                if (isGranted) {
+                    onPermissionGranted()
+                } else {
+                    onPermissionDenied()
                 }
-
-            SideEffect {
-                requestLocationPermissionLauncher.launch(permission)
             }
+
+        SideEffect {
+            requestLocationPermissionLauncher.launch(permission)
         }
     }
 }
+

@@ -37,15 +37,12 @@ class NotifierWorker(private val appContext: Context, params: WorkerParameters) 
         ).build()
         val lastNotifiedDao = db.lastNotifiedDao()
         val lastNotified: LastNotified? = lastNotifiedDao.getOne()
-        if(lastNotified == null || lastNotified.firstItemTitle?.contains(responseRSS.items?.first()?.title.orEmpty()) == false || lastNotified.firstItemTitle?.contains(responseHTML.first().title) == false){
-            if (ActivityCompat.checkSelfPermission(
-                    appContext,
-                    Manifest.permission.POST_NOTIFICATIONS,
-                )
-                == PackageManager.PERMISSION_GRANTED
-            ) {
+        val containsLastRssItem = lastNotified == null || lastNotified.firstItemTitle?.contains(responseRSS.items?.first()?.title.orEmpty()) == false
+        val containsLastHTMLItem = lastNotified == null || lastNotified.firstItemTitle?.contains(responseHTML.first().title) == false
+        if(containsLastRssItem || containsLastHTMLItem){
+            if (ActivityCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
                 with(NotificationManagerCompat.from(applicationContext)) {
-                    notify(0, createNotification())
+                    notify(1, createNotification())
                 }
                 if(lastNotified != null) {
                     lastNotifiedDao.delete(lastNotified)
@@ -60,11 +57,8 @@ class NotifierWorker(private val appContext: Context, params: WorkerParameters) 
 
     private fun createNotification(): Notification {
         createNotificationChannel()
-
         val mainActivityIntent = Intent(applicationContext, MainActivity::class.java)
-
         val pendingIntentFlag = PendingIntent.FLAG_IMMUTABLE
-
         val mainActivityPendingIntent =
             PendingIntent.getActivity(
                 applicationContext,
@@ -72,10 +66,9 @@ class NotifierWorker(private val appContext: Context, params: WorkerParameters) 
                 mainActivityIntent,
                 pendingIntentFlag,
             )
-
         return NotificationCompat.Builder(applicationContext, notificationChannelId)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentText("New Warnings Arrived!")
+            .setContentText("Nueva alerta")
             .setContentIntent(mainActivityPendingIntent)
             .setAutoCancel(true)
             .build()
