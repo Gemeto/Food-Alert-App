@@ -1,6 +1,8 @@
 name: Build
 on:
-  create:
+  push:
+    branches:
+      - '**'
     tags:
       - 'prerelease-v*.*.*'
 
