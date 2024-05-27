@@ -1,5 +1,6 @@
 name: Build
 on: [pull_request, push]
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,7 +27,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
-          tag_name: latest-prerelease
+          tag_name: prerelease-${{ github.event.release.tag_name }}
           release_name: Automatic Pre-release
           draft: false
           prerelease: true
