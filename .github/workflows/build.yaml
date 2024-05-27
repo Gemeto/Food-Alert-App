@@ -2,7 +2,7 @@ name: Build
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'prerelease-v*.*.*'
 
 jobs:
   build:
@@ -29,9 +29,9 @@ jobs:
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          VERSION: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.event.release.tag_name }}
         with:
-          tag_name: prerelease-$VERSION
+          tag_name: $TAG
           release_name: Automatic Pre-release
           draft: false
           prerelease: true
