@@ -17,6 +17,9 @@ jobs:
         with:
           distribution: "temurin"
           java-version: 17
+      - name: Check vars
+        run: |
+          echo "Tag: " + ${{  github.ref_name }}
       - name: Make gradlew executable
         run: chmod +x ./gradlew
       - name: Build the app
