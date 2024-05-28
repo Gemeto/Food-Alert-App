@@ -76,6 +76,7 @@ dependencies {
     implementation("io.ktor:ktor-client-cio:2.3.11")
     implementation("com.fleeksoft.ksoup:ksoup:0.1.2")
     implementation("com.google.mlkit:translate:17.0.2")
+    implementation("com.google.mlkit:language-id:17.0.5")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

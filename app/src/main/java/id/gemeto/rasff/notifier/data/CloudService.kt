@@ -8,12 +8,17 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.ArrayList
+
 
 class CloudService(private val httpClient: HttpClient) {
     object CloudServiceConstants {
         const val NO_IMAGE_URL = "https://media.istockphoto.com/id/887464786/vector/no-cameras-allowed-sign-flat-icon-in-red-crossed-out-circle-vector.jpg?s=612x612&w=0&k=20&c=LVkPMBiZas8zxBPmhEApCv3UiYjcbYZJsO-CVQjAJeU="
     }
+    var lastRSSArticleDate: Long = Long.MAX_VALUE
 
     suspend fun getRSSArticles(
         urlString: String = "https://webgate.ec.europa.eu/rasff-window/backend/public/consumer/rss/5010/"
@@ -28,13 +33,21 @@ class CloudService(private val httpClient: HttpClient) {
             content.forEachIndexed { index, value ->
                 async {
                     try {
-                        articles.add(Article(value.select("title").text(), value.select("description").text(), value.select("link").text(), CloudServiceConstants.NO_IMAGE_URL))
+                        val text = value.select("description").text()
+                        val textDate = text.replace("Notified by .* on ".toRegex(), "")
+                        var unixTime: Long = 0
+                        if(textDate.isNotEmpty()) {
+                            val date = LocalDate.parse(textDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                            unixTime = date.atStartOfDay(ZoneId.systemDefault()).toInstant().epochSecond
+                        }
+                        articles.add(Article(value.select("title").text(), value.select("description").text(), value.select("link").text(), CloudServiceConstants.NO_IMAGE_URL, unixTime))
                     }catch(_: Exception){
 
                     }
                 }.await()
             }
         }
+        lastRSSArticleDate = articles.last().unixTime
         return articles
     }
 
@@ -67,8 +80,15 @@ class CloudService(private val httpClient: HttpClient) {
                             val articleHtml = httpClient.get(link).bodyAsText()
                             val articleDoc = Ksoup.parse(articleHtml)
                             val imageSrc = articleDoc.selectFirst("img")?.attr("src")
+                            val text = articleDoc.selectFirst(".theContent p")?.text() ?: ""
+                            val textDate = text.replace("Fecha y hora: ", "")
+                            var unixTime: Long = 0
+                            if(textDate.isNotEmpty()) {
+                                val date = LocalDate.parse(textDate, DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+                                unixTime = date.atStartOfDay(ZoneId.systemDefault()).toInstant().epochSecond
+                            }
                             articles.add(Article(value.text(), content[index+1].text(), link,
-                                if(!imageSrc.isNullOrEmpty() && link.contains("aesan.gob.es", true)) { domain + imageSrc } else CloudServiceConstants.NO_IMAGE_URL))
+                                if(!imageSrc.isNullOrEmpty() && link.contains("aesan.gob.es", true)) { domain + imageSrc } else CloudServiceConstants.NO_IMAGE_URL, unixTime))
                         }
                     }catch(_: Exception){
 
