@@ -48,7 +48,7 @@ class HomeViewModel : ViewModel() {
             && !_isLoadingMore.value && _uiStateUnfiltered.value is UiResult.Success
     private fun canLoadMore(articles: List<Article>, currentItems: Int): Boolean  = !_isSearching.value
             && (articles.count { it.title.contains(searchText.value, true) } < (currentItems + HomeViewConstants.ITEMS_PER_PAGE)
-            || _cloudService.lastRSSArticleDate > articles.last().unixTime)
+            || _cloudService.lastRSSArticleDate < articles.last().unixTime)
     private fun canLoadMoreSearching(articles: List<Article>): Boolean  = !_allArticlesLoaded
             && totalSearchedArticles(articles) < HomeViewConstants.ITEMS_PER_PAGE //change articles count
     private fun searchQuerys(): List<String> = searchText.value.split(" ", "\n").map { it.lowercase().removeSuffix("s") }
