@@ -51,7 +51,7 @@ class HomeViewModel : ViewModel() {
             || _cloudService.lastRSSArticleDate < articles.last().unixTime)
     private fun canLoadMoreSearching(articles: List<Article>): Boolean  = !_allArticlesLoaded
             && totalSearchedArticles(articles) < HomeViewConstants.ITEMS_PER_PAGE //change articles count
-    private fun searchQuerys(): List<String> = searchText.value.split(" ", "\n").map { it.lowercase().removeSuffix("s") }
+    private fun searchQuerys(): List<String> = searchText.value.trim().split(" ", "\n").map { it.lowercase().removeSuffix("s") }
     private fun totalSearchedArticles(articles: List<Article>): Int = articles.count { searchQuerys().any{ query ->
         it.title.lowercase().contains(query)}
     }
