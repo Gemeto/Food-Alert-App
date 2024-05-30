@@ -52,7 +52,10 @@ class HomeViewModel : ViewModel() {
     private fun canLoadMoreSearching(articles: List<Article>): Boolean  = !_allArticlesLoaded
             && totalSearchedArticles(articles) < HomeViewConstants.ITEMS_PER_PAGE //change articles count
     private fun searchQuerys(): List<String> = searchText.value.split(" ", "\n").map { it.lowercase().removeSuffix("s") }
-    private fun totalSearchedArticles(articles: List<Article>): Int = articles.count { searchQuerys().any{ query -> it.title.split(" ", "\n").map{ it.lowercase().removeSuffix("s") }.contains(query)} }
+    private fun totalSearchedArticles(articles: List<Article>): Int = articles.count { searchQuerys().any{ query ->
+        it.title.lowercase().contains(query)}
+    }
+    private fun searchFilter(article: Article): Boolean = searchQuerys().any{ query -> article.title.lowercase().contains(query)}
 
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
         .onEach { _isSearching.update { true } }
@@ -74,9 +77,8 @@ class HomeViewModel : ViewModel() {
                 val result = UiResult.Success(HomeUiState(articles))
                 _uiStateUnfiltered.value = result
                 _uiState.update { result }
-                val querys = query.split(" ", "\n").map { it.lowercase().removeSuffix("s") }
                 UiResult.Success(
-                    HomeUiState(articles.filter { querys.any{ query -> it.title.split(" ", "\n").map{ it.lowercase().removeSuffix("s") }.contains(query)} })
+                    HomeUiState(articles.filter {article -> searchFilter(article) })
                 )
             }else{
                 state
@@ -114,7 +116,7 @@ class HomeViewModel : ViewModel() {
                     val state = (_uiStateUnfiltered.value as UiResult.Success).data
                     val home = withContext(Dispatchers.IO) {
                         (state.articles as ArrayList).addAll(_cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE))
-                        val currentArticles = state.articles.count { it.title.contains(searchText.value, true) }
+                        val currentArticles = state.articles.count { searchFilter(it) }
                         while(canLoadMore(state.articles, currentArticles)){
                             _page.update { _page.value + 1 }
                             val newArticles = _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
@@ -130,7 +132,7 @@ class HomeViewModel : ViewModel() {
                     if(searchText.value.isNotEmpty()){
                         _uiState.update {
                             UiResult.Success(
-                                HomeUiState(home.articles.filter { it.title.contains(searchText.value, true) })
+                                HomeUiState(home.articles.filter { searchFilter(it) })
                             )
                         }
                     } else {

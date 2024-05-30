@@ -83,7 +83,7 @@ class CloudService(private val httpClient: HttpClient) {
                             val text = articleDoc.selectFirst(".theContent p")?.text() ?: ""
                             val textDate = text.replace("Fecha y hora: ", "")
                             var unixTime: Long = 0
-                            if(textDate.isNotEmpty()) {
+                            if(textDate.isNotEmpty() && !textDate.contains("[a-zA-Z]".toRegex())) {
                                 val date = LocalDate.parse(textDate, DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
                                 unixTime = date.atStartOfDay(ZoneId.systemDefault()).toInstant().epochSecond
                             }
