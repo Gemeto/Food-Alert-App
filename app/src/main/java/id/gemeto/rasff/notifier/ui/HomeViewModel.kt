@@ -2,6 +2,10 @@ package id.gemeto.rasff.notifier.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import id.gemeto.rasff.notifier.data.CloudService
 import id.gemeto.rasff.notifier.data.ktorClient
 import id.gemeto.rasff.notifier.ui.util.UiResult
@@ -22,6 +26,7 @@ class HomeViewModel : ViewModel() {
     //Dependecies
     private val _cloudService = CloudService(ktorClient)
     private val _uiMapper = HomeUiMapper()
+    val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     //Variables
     private val _uiState = MutableStateFlow<UiResult<HomeUiState>>(UiResult.Loading)
     private val _uiStateUnfiltered = MutableStateFlow<UiResult<HomeUiState>>(UiResult.Loading)
@@ -45,7 +50,9 @@ class HomeViewModel : ViewModel() {
             && (articles.count { it.title.contains(searchText.value, true) } < (currentItems + HomeViewConstants.ITEMS_PER_PAGE)
             || _cloudService.lastRSSArticleDate > articles.last().unixTime)
     private fun canLoadMoreSearching(articles: List<Article>): Boolean  = !_allArticlesLoaded
-            && articles.count { it.title.contains(searchText.value, true) } < HomeViewConstants.ITEMS_PER_PAGE
+            && totalSearchedArticles(articles) < HomeViewConstants.ITEMS_PER_PAGE //change articles count
+    private fun searchQuerys(): List<String> = searchText.value.split(" ", "\n").map { it.lowercase().removeSuffix("s") }
+    private fun totalSearchedArticles(articles: List<Article>): Int = articles.count { searchQuerys().any{ query -> it.title.split(" ", "\n").map{ it.lowercase().removeSuffix("s") }.contains(query)} }
 
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
         .onEach { _isSearching.update { true } }
@@ -67,8 +74,9 @@ class HomeViewModel : ViewModel() {
                 val result = UiResult.Success(HomeUiState(articles))
                 _uiStateUnfiltered.value = result
                 _uiState.update { result }
+                val querys = query.split(" ", "\n").map { it.lowercase().removeSuffix("s") }
                 UiResult.Success(
-                    HomeUiState(articles.filter { it.title.contains(query, true) })
+                    HomeUiState(articles.filter { querys.any{ query -> it.title.split(" ", "\n").map{ it.lowercase().removeSuffix("s") }.contains(query)} })
                 )
             }else{
                 state
@@ -138,5 +146,16 @@ class HomeViewModel : ViewModel() {
 
     fun onSearchTextChange(text: String) {
         _searchText.value = text
+    }
+
+    suspend fun imageOCR(image: InputImage) {
+        withContext(Dispatchers.IO) {
+            val result = Tasks.await(
+                recognizer.process(image)
+                    .addOnSuccessListener {}
+                    .addOnFailureListener {}
+            )
+            _searchText.update { result.text.replace("[0-9]".toRegex(), "") }
+        }
     }
 }

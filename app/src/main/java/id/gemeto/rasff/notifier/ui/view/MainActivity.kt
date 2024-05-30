@@ -40,14 +40,21 @@ import id.gemeto.rasff.notifier.ui.util.UiResult
 import id.gemeto.rasff.notifier.workers.NotifierWorker
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextField
@@ -55,11 +62,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import com.google.android.datatransport.BuildConfig
+import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.flow.distinctUntilChanged
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
@@ -154,6 +171,29 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val listState = rememberLazyListState()
+    val file = context.createImageFile()
+    val uri = FileProvider.getUriForFile(
+        context,
+        BuildConfig.APPLICATION_ID + ".provider",
+        file
+    )
+    var capturedImageUri by remember {
+        mutableStateOf<Uri>(Uri.EMPTY)
+    }
+    val cameraLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {
+            capturedImageUri = uri
+        }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        if (it) {
+            Toast.makeText(context, "Permission Granted", Toast.LENGTH_SHORT).show()
+            cameraLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth().padding(bottom = 75.dp),
@@ -174,16 +214,30 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                     HomeViewModel.HomeViewConstants.DESCRIPTION,
                     style = MaterialTheme.typography.bodyLarge
                 )
-                /*Button(
+                Button(
                     content = { Text("Toma una foto de tu lista de la compra!") },
                     modifier = Modifier.fillMaxHeight(),
                     onClick = {
-                        val intent = Intent(context, CameraActivity::class.java)
-                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        //intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                        context.startActivity(intent)
+                        val permissionCheckResult =
+                            ContextCompat.checkSelfPermission(context, "android.permission.CAMERA")
+                        if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+                            cameraLauncher.launch(uri)
+                        } else {
+                            permissionLauncher.launch("android.permission.CAMERA")
+                        }
                     }
-                ) TO DO implement camera search function*/
+                )
+                LaunchedEffect(capturedImageUri) {
+                    snapshotFlow{ capturedImageUri.toString() }
+                        .distinctUntilChanged()
+                        .collect {
+                            if (capturedImageUri.path?.isNotEmpty() == true) {
+                                viewModel.imageOCR(InputImage.fromFilePath(context, capturedImageUri))
+                                capturedImageUri = Uri.EMPTY
+                            }
+                        }
+                }
+
             }
         }
         if(!isSearching) {
@@ -263,6 +317,16 @@ fun LazyListLoaderHandler(
                 }
             }
     }
+}
+
+fun Context.createImageFile(): File {
+    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ENGLISH).format(Date())
+    val imageFileName = "JPEG_" + timeStamp + "_"
+    return File.createTempFile(
+        imageFileName, /* prefix */
+        ".jpg", /* suffix */
+        externalCacheDir /* directory */
+    )
 }
 
 @Preview(showBackground = true)

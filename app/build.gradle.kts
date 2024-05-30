@@ -77,6 +77,7 @@ dependencies {
     implementation("com.fleeksoft.ksoup:ksoup:0.1.2")
     implementation("com.google.mlkit:translate:17.0.2")
     implementation("com.google.mlkit:language-id:17.0.5")
+    implementation("com.google.mlkit:text-recognition:16.0.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
