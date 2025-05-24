@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
+import androidx.compose.material3.Divider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
@@ -70,12 +71,19 @@ fun DetailScreen(title: String?, description: String?, imageUrl: String?, link: 
                     style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                Divider(
+                    modifier = Modifier
+                        .fillMaxWidth(0.6f) // El divisor no ocupa todo el ancho
+                        .padding(vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                )
                 Text(
                     description ?: "",
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center
                 )
+                Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     content = {
                         Text("Abrir en el navegador")

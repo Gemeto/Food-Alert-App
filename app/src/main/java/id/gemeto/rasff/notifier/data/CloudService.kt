@@ -12,6 +12,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.ArrayList
+import java.util.regex.Pattern
 
 
 class CloudService(private val httpClient: HttpClient) {
@@ -19,6 +20,20 @@ class CloudService(private val httpClient: HttpClient) {
         const val NO_IMAGE_URL = "https://media.istockphoto.com/id/887464786/vector/no-cameras-allowed-sign-flat-icon-in-red-crossed-out-circle-vector.jpg?s=612x612&w=0&k=20&c=LVkPMBiZas8zxBPmhEApCv3UiYjcbYZJsO-CVQjAJeU="
     }
     var lastRSSArticleDate: Long = Long.MAX_VALUE
+
+    fun extractFirstHttpsUrl(text: String): String {
+        val urlPattern = Pattern.compile(
+            "https://[^\\s]+",
+            Pattern.CASE_INSENSITIVE
+        )
+        val matcher = urlPattern.matcher(text)
+
+        return if (matcher.find()) {
+            matcher.group(0) // group(0) returns the entire matched string
+        } else {
+            ""
+        }
+    }
 
     suspend fun getRSSArticles(
         urlString: String = "https://webgate.ec.europa.eu/rasff-window/backend/public/consumer/rss/5010/"
@@ -40,7 +55,7 @@ class CloudService(private val httpClient: HttpClient) {
                             val date = LocalDate.parse(textDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                             unixTime = date.atStartOfDay(ZoneId.systemDefault()).toInstant().epochSecond
                         }
-                        articles.add(Article(value.select("title").text(), value.select("description").text(), value.select("link").text(), CloudServiceConstants.NO_IMAGE_URL, unixTime))
+                        articles.add(Article(value.select("title").text(), value.select("description").text(), extractFirstHttpsUrl(value.toString()), CloudServiceConstants.NO_IMAGE_URL, unixTime))
                     }catch(_: Exception){
 
                     }

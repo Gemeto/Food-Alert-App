@@ -50,12 +50,15 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.LaunchedEffect
@@ -68,6 +71,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.google.android.datatransport.BuildConfig
@@ -196,24 +201,45 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 75.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 75.dp),
         contentPadding = PaddingValues(16.dp),
         state = listState
     ) {
         item {
             Column(
-                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(18.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    HomeViewModel.HomeViewConstants.TITLE,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(18.dp, 18.dp)
+                    text = HomeViewModel.HomeViewConstants.TITLE,
+                    style = MaterialTheme.typography.headlineMedium, // Un estilo más prominente
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.primary, // Usar color primario para destacar
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Divider(
+                    modifier = Modifier
+                        .fillMaxWidth(0.6f) // El divisor no ocupa todo el ancho
+                        .padding(vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
                 )
                 Text(
-                    HomeViewModel.HomeViewConstants.DESCRIPTION,
-                    style = MaterialTheme.typography.bodyLarge
+                    text = HomeViewModel.HomeViewConstants.DESCRIPTION,
+                    style = MaterialTheme.typography.bodyMedium, // Un poco más pequeño para contraste
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, // Un color un poco más suave
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
                 )
+                Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     content = { Text("Toma una foto de tu lista de la compra!") },
                     modifier = Modifier.fillMaxHeight(),
@@ -221,7 +247,13 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                         val permissionCheckResult =
                             ContextCompat.checkSelfPermission(context, "android.permission.CAMERA")
                         if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
-                            cameraLauncher.launch(uri)
+                            //cameraLauncher.launch(uri)
+                            val intent = Intent(context, OCRActivity::class.java)
+                            intent.putExtra("title", HomeViewModel.HomeViewConstants.TITLE)
+                            intent.putExtra("description", HomeViewModel.HomeViewConstants.DESCRIPTION)
+                            intent.putExtra("imageUrl", "https://i.stack.imgur.com/NTaY0.png")
+                            intent.putExtra("link", "https://example.com")
+                            context.startActivity(intent)
                         } else {
                             permissionLauncher.launch("android.permission.CAMERA")
                         }
