@@ -238,5 +238,3 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más det
 **¿Encontraste útil esta aplicación? ¡Dale una ⭐ al repositorio!**
 
 </div>
-- [System Architecture (Gemeto/Food-Alert-App)](/wiki/Gemeto/Food-Alert-App#2)
-- [OCR and AI Features (Gemeto/Food-Alert-App)](/wiki/Gemeto/Food-Alert-App#3.3)
