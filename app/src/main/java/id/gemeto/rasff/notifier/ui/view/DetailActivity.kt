@@ -29,7 +29,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
@@ -60,20 +59,9 @@ class DetailActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class) // Necesario para Card y otros componentes de M3
 @Composable
 fun DetailScreen(title: String?, description: String?, imageUrl: String?, link: String?) {
     val handler = LocalUriHandler.current
-
-    // Estos colores se tomarían de tu MaterialTheme, configurado para blanco y negro.
-    // Ejemplo:
-    // val backgroundColor = MaterialTheme.colorScheme.background // Podría ser Color.White o Color.Black
-    // val onBackgroundColor = MaterialTheme.colorScheme.onBackground // El opuesto para contraste
-    // val surfaceContainerLowestColor = MaterialTheme.colorScheme.surfaceContainerLowest // Un gris muy sutil
-    // val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant // Un color de texto más apagado
-    // val outlineVariantColor = MaterialTheme.colorScheme.outlineVariant // Para divisores
-    // val primaryColor = MaterialTheme.colorScheme.primary // Para el botón (negro sobre blanco o viceversa)
-    // val onPrimaryColor = MaterialTheme.colorScheme.onPrimary // Para el texto del botón
 
     LazyColumn(
         modifier = Modifier
@@ -89,7 +77,6 @@ fun DetailScreen(title: String?, description: String?, imageUrl: String?, link: 
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp) // Espaciado uniforme entre elementos
             ) {
-                // Sección de la Imagen
                 if (!imageUrl.isNullOrEmpty()) {
                     Card(
                         modifier = Modifier
@@ -111,7 +98,6 @@ fun DetailScreen(title: String?, description: String?, imageUrl: String?, link: 
                     }
                 }
 
-                // Sección del Título
                 Text(
                     text = title ?: "Detalle de la Alerta",
                     style = MaterialTheme.typography.headlineSmall, // Tipografía M3 para títulos
@@ -122,7 +108,6 @@ fun DetailScreen(title: String?, description: String?, imageUrl: String?, link: 
                         .padding(horizontal = 24.dp) // Padding horizontal
                 )
 
-                // Divisor
                 HorizontalDivider(
                     modifier = Modifier
                         .fillMaxWidth(0.6f) // Ancho del 60%, centrado por el Column
@@ -131,7 +116,6 @@ fun DetailScreen(title: String?, description: String?, imageUrl: String?, link: 
                     color = MaterialTheme.colorScheme.outlineVariant // Color sutil para el divisor
                 )
 
-                // Sección de la Descripción
                 if (!description.isNullOrEmpty()) {
                     Text(
                         text = description,
@@ -143,11 +127,9 @@ fun DetailScreen(title: String?, description: String?, imageUrl: String?, link: 
                             .padding(horizontal = 32.dp) // Mayor padding para bloques de texto
                     )
                 } else {
-                    // Espaciador si no hay descripción, para mantener el espacio antes del botón
                     Spacer(modifier = Modifier.height(0.dp)) // Arrangement.spacedBy ya maneja esto, pero podría ser explícito si es necesario
                 }
 
-                // Sección del Botón
                 if (!link.isNullOrEmpty()) {
                     Button(
                         onClick = { handler.openUri(link) },

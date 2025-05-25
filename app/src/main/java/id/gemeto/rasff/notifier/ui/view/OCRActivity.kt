@@ -36,6 +36,9 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
 import id.gemeto.rasff.notifier.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 import java.io.InputStream
+import androidx.core.net.toUri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class ChatMessage(
     val text: String,
@@ -49,6 +52,8 @@ class OCRActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val title: String? = intent.getStringExtra("title")
+        val imageUri: String? = intent.getStringExtra("imageUri")
+        val context: String? = intent.getStringExtra("context")
         setContent {
             MyApplicationTheme {
                 Surface(
@@ -56,7 +61,9 @@ class OCRActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     OCRScreen(
-                        title = title
+                        title = title,
+                        imageUri = imageUri,
+                        sysContext = context
                     )
                 }
             }
@@ -66,7 +73,7 @@ class OCRActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OCRScreen(title: String?) {
+fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -77,7 +84,7 @@ fun OCRScreen(title: String?) {
     var currentStreamingMessage by remember { mutableStateOf("") }
 
     // Estados para la imagen - REMOVIDO hasStoragePermission
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(imageUri?.toUri()) }
 
     // Estado para LazyColumn
     val listState = rememberLazyListState()
@@ -91,17 +98,23 @@ fun OCRScreen(title: String?) {
         }
     }
 
-    // Inicializar LLM con capacidades multimodales
-    val llmInference = remember {
-        try {
-            val taskOptions = LlmInference.LlmInferenceOptions.builder()
-                .setModelPath("/data/local/tmp/llm/gemma-3n-E2B-it-int4.task")
-                .setMaxTopK(64)
-                .setMaxNumImages(1)
-                .build()
-            LlmInference.createFromOptions(context, taskOptions)
-        } catch (e: Exception) {
-            null
+    // Estado para LlmInference, inicializado a null
+    var llmInference by remember { mutableStateOf<LlmInference?>(null) }
+    var llmError by remember { mutableStateOf<String?>(null) } // Para mostrar errores de carga del modelo
+
+    // LaunchedEffect para inicializar LLM en un hilo de fondo
+    LaunchedEffect(Unit) { // Se ejecuta solo una vez cuando el composable entra en la composición
+        withContext(Dispatchers.IO) { // Mover la inicialización a un hilo de fondo
+            try {
+                val taskOptions = LlmInference.LlmInferenceOptions.builder()
+                    .setModelPath("/data/local/tmp/llm/gemma-3n-E2B-it-int4.task") // Asegúrate que esta ruta sea accesible
+                    .setMaxTopK(64)
+                    .setMaxNumImages(1)
+                    .build()
+                llmInference = LlmInference.createFromOptions(context, taskOptions)
+            } catch (e: Exception) {
+                llmError = "Error al cargar el modelo AI: ${e.localizedMessage}"
+            }
         }
     }
 
@@ -117,17 +130,19 @@ fun OCRScreen(title: String?) {
         }
     }
 
-    fun sendMessage() {
+    fun sendMessage(sysContext: String?) {
         if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
 
         // Agregar mensaje del usuario con imagen si existe
+        val sysPrompt = "Eres un asistente capaz de leer el contexto de alertas alimentarias actuales y ver imagenes. Unicamente contesta a la pregunta del usuario. Contesta siempre en español."
+        //val msg = "$sysPrompt\n\nInformación de referencia:\n\n$sysContext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
+        val msg = "$sysPrompt\n\nPregunta:\n\n$currentMessage"
         messages = messages + ChatMessage(
-            text = currentMessage,
+            text = msg,
             isUser = true,
             imageUri = selectedImageUri
         )
 
-        val userMessage = currentMessage
         val userImageUri = selectedImageUri
         currentMessage = ""
         selectedImageUri = null
@@ -137,44 +152,51 @@ fun OCRScreen(title: String?) {
         currentStreamingMessage = ""
         messages = messages + ChatMessage("", false, false)
 
-        scope.launch {
+        scope.launch { // Asegúrate que 'scope' no esté rígidamente atado al Main thread por defecto para todo.
+            // Si usas viewModelScope, esto ya maneja la cancelación automáticamente.
             try {
-                // Crear sesión con modalidad de visión habilitada
-                val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
-                    .setTopK(10)
-                    .setTemperature(0.4f)
-                    .setGraphOptions(GraphOptions.builder().setEnableVisionModality(true).build())
-                    .build()
+                // Mueve la lógica de inferencia pesada a un hilo de fondo
+                val fullResponse = withContext(Dispatchers.IO) { // O Dispatchers.Default si es más apropiado
+                    // Crear sesión con modalidad de visión habilitada
+                    val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
+                        .setTopK(10)
+                        .setTemperature(0.9f)
+                        .setGraphOptions(GraphOptions.builder().setEnableVisionModality(true).build())
+                        .build()
 
-                val session = LlmInferenceSession.createFromOptions(llmInference, sessionOptions)
+                    val session = LlmInferenceSession.createFromOptions(llmInference, sessionOptions)
 
-                // Preparar el prompt
-                val finalPrompt = if (userMessage.isNotBlank()) {
-                    userMessage
-                } else if (userImageUri != null) {
-                    "Describe detalladamente lo que ves en esta imagen."
-                } else {
-                    "Hola"
-                }
-
-                // Agregar el texto del query
-                session.addQueryChunk(finalPrompt)
-
-                // Si hay imagen, agregarla a la sesión
-                if (userImageUri != null) {
-                    val mpImage = uriToMPImage(userImageUri)
-                    if (mpImage != null) {
-                        session.addImage(mpImage)
+                    // Preparar el prompt
+                    val finalPrompt = if (msg.isNotBlank()) {
+                        msg
+                    } else {
+                        "Hola"
                     }
+
+                    // Agregar el texto del query
+                    session.addQueryChunk(finalPrompt)
+
+                    // Si hay imagen, agregarla a la sesión
+                    if (userImageUri != null) {
+                        val mpImage = uriToMPImage(userImageUri) // Esta función también podría ser pesada
+                        if (mpImage != null) {
+                            session.addImage(mpImage)
+                        }
+                    }
+
+                    // Generar respuesta (esta es la operación principal bloqueante)
+                    val response = session.generateResponse()
+
+                    // Cerrar la sesión
+                    session.close()
+                    response // Retornar la respuesta para usarla fuera de withContext
                 }
 
-                // Generar respuesta
-                val fullResponse = session.generateResponse()
+                // La simulación de streaming y actualización de UI debe ocurrir en el hilo principal
+                // Si 'scope' ya es MainScope o viewModelScope, no necesitas cambiar de contexto aquí.
+                // Si 'scope' es un scope genérico con Dispatchers.Default o IO, necesitas volver al Main thread:
+                // withContext(Dispatchers.Main) { ... }
 
-                // Cerrar la sesión
-                session.close()
-
-                // Simular streaming dividiendo la respuesta en palabras
                 val words = fullResponse.split(" ")
                 currentStreamingMessage = ""
 
@@ -190,7 +212,7 @@ fun OCRScreen(title: String?) {
                     listState.animateScrollToItem(messages.size - 1)
 
                     // Pausa para simular escritura
-                    kotlinx.coroutines.delay(100)
+                    kotlinx.coroutines.delay(100) // delay es una función suspendible, no bloquea el hilo.
                 }
 
                 // Completar el mensaje
@@ -200,7 +222,8 @@ fun OCRScreen(title: String?) {
                 isGenerating = false
 
             } catch (e: Exception) {
-                // Manejar error
+                // Manejar error (asegúrate que la actualización de UI también sea en el Main thread si es necesario)
+                // withContext(Dispatchers.Main) { ... }
                 messages = messages.dropLast(1) +
                         ChatMessage("Error: No se pudo generar respuesta - ${e.message}", false, true)
                 isGenerating = false
@@ -226,15 +249,28 @@ fun OCRScreen(title: String?) {
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = title ?: "Chat con Gemma 3N",
                     style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
+                if (llmInference == null && llmError == null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Cargando modelo AI...", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                llmError?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
             }
         }
 
@@ -289,7 +325,6 @@ fun OCRScreen(title: String?) {
             }
         }
 
-        // Input field con botones
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Bottom
@@ -305,24 +340,22 @@ fun OCRScreen(title: String?) {
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Botón de galería - ICONO FIJO
             FloatingActionButton(
                 onClick = { selectImage() },
                 modifier = Modifier.size(48.dp),
-                containerColor = MaterialTheme.colorScheme.secondary
+                containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(
                     Icons.Default.KeyboardArrowUp, // ICONO SIEMPRE FIJO
                     contentDescription = "Seleccionar imagen",
-                    tint = MaterialTheme.colorScheme.onSecondary
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
 
             Spacer(modifier = Modifier.width(8.dp))
-
             // Botón de envío
             FloatingActionButton(
-                onClick = { sendMessage() },
+                onClick = { sendMessage(sysContext ?: "Sin contexto") },
                 modifier = Modifier.size(56.dp),
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
@@ -384,8 +417,24 @@ fun ChatBubble(message: ChatMessage) {
 
                 // Mostrar texto si no está vacío
                 if (message.text.isNotBlank()) {
+                    var textToDisplay = message.text
+                    if(message.isUser) {
+                        val originalText = message.text
+                        val preguntaMarker = "\n\nPregunta:\n\n"
+                        val respuestaMarker = "\n\nRespuesta:"
+                        val indexOfPregunta = originalText.indexOf(preguntaMarker)
+                        val indexOfRespuesta = originalText.indexOf(respuestaMarker)
+                        if (indexOfPregunta != -1 && indexOfRespuesta != -1) {
+                            val preguntaYResto = originalText.substring(indexOfPregunta)
+                            textToDisplay = preguntaYResto.replaceFirst(preguntaMarker, "")
+                                .replaceFirst(respuestaMarker, "")
+                        }else if (indexOfPregunta != -1) {
+                            val preguntaYResto = originalText.substring(indexOfPregunta)
+                            textToDisplay = preguntaYResto.replaceFirst(preguntaMarker, "")
+                        }
+                    }
                     Text(
-                        text = message.text,
+                        text = textToDisplay,
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (message.isUser)
                             MaterialTheme.colorScheme.onPrimary
@@ -427,7 +476,9 @@ fun OCRPreview() {
             color = MaterialTheme.colorScheme.background
         ) {
             OCRScreen(
-                title = "Chat con Gemma 3N"
+                title = "Chat con Gemma 3N",
+                imageUri = "",
+                sysContext = "Sin contexto"
             )
         }
     }

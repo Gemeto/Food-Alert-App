@@ -71,17 +71,16 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
-    implementation("androidx.camera:camera-lifecycle:1.3.3")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
     val room_version = "2.6.1"
     implementation("androidx.room:room-runtime:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
 
     implementation("io.ktor:ktor-client-cio:2.3.11")
     implementation("com.fleeksoft.ksoup:ksoup:0.1.2")
-    implementation("com.google.mlkit:translate:17.0.2")
+    implementation("com.google.mlkit:translate:17.0.3")
     implementation("com.google.mlkit:language-id:17.0.5")
-    implementation("com.google.mlkit:text-recognition:16.0.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

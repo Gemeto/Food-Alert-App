@@ -2,10 +2,6 @@ package id.gemeto.rasff.notifier.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.gms.tasks.Tasks
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import id.gemeto.rasff.notifier.data.CloudService
 import id.gemeto.rasff.notifier.data.ktorClient
 import id.gemeto.rasff.notifier.ui.util.UiResult
@@ -26,7 +22,6 @@ class HomeViewModel : ViewModel() {
     //Dependecies
     private val _cloudService = CloudService(ktorClient)
     private val _uiMapper = HomeUiMapper()
-    val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     //Variables
     private val _uiState = MutableStateFlow<UiResult<HomeUiState>>(UiResult.Loading)
     private val _uiStateUnfiltered = MutableStateFlow<UiResult<HomeUiState>>(UiResult.Loading)
@@ -150,14 +145,10 @@ class HomeViewModel : ViewModel() {
         _searchText.value = text
     }
 
-    suspend fun imageOCR(image: InputImage) {
+    suspend fun imageOCR() {
         withContext(Dispatchers.IO) {
-            val result = Tasks.await(
-                recognizer.process(image)
-                    .addOnSuccessListener {}
-                    .addOnFailureListener {}
-            )
-            _searchText.update { result.text.replace("[0-9]".toRegex(), "") }
+            val result = null
+            //_searchText.update { result.text.replace("[0-9]".toRegex(), "") }
         }
     }
 }

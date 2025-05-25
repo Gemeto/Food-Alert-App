@@ -79,7 +79,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.google.android.datatransport.BuildConfig
-import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.io.File
 import java.text.SimpleDateFormat
@@ -123,7 +122,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
     val context = LocalContext.current
@@ -132,7 +131,6 @@ fun HomeScreen(viewModel: HomeViewModel) {
         RuntimePermissionsDialog(
             Manifest.permission.POST_NOTIFICATIONS,
             onPermissionDenied = {
-                Toast.makeText(context, "Notifications Permission Granted", Toast.LENGTH_SHORT).show()
             },
             onPermissionGranted = {
                 Toast.makeText(context, "Notifications Permission Denied", Toast.LENGTH_SHORT).show()
@@ -205,7 +203,6 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
         ActivityResultContracts.RequestPermission()
     ) {
         if (it) {
-            Toast.makeText(context, "Permission Granted", Toast.LENGTH_SHORT).show()
             cameraLauncher.launch(uri)
         } else {
             Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
@@ -259,14 +256,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                         val permissionCheckResult =
                             ContextCompat.checkSelfPermission(context, "android.permission.CAMERA")
                         if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
-                            //cameraLauncher.launch(uri)
-                            val intent = Intent(context, OCRActivity::class.java)
-                            intent.putExtra("title", HomeViewModel.HomeViewConstants.TITLE)
-                            intent.putExtra("description", HomeViewModel.HomeViewConstants.DESCRIPTION)
-                            intent.putExtra("imageUrl", "https://i.stack.imgur.com/NTaY0.png")
-                            intent.putExtra("link", "https://example.com")
-                            val result = context.startActivity(intent)
-                            Toast.makeText(context, result.toString(), Toast.LENGTH_SHORT).show()
+                            cameraLauncher.launch(uri)
                         } else {
                             permissionLauncher.launch("android.permission.CAMERA")
                         }
@@ -277,7 +267,13 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                         .distinctUntilChanged()
                         .collect {
                             if (capturedImageUri.path?.isNotEmpty() == true) {
-                                viewModel.imageOCR(InputImage.fromFilePath(context, capturedImageUri))
+                                val intent = Intent(context, OCRActivity::class.java)
+                                intent.putExtra("title", "Gemma 3n Chat")
+                                intent.putExtra("imageUri", capturedImageUri.toString())
+                                //Obtenemos todos los titulos de las alertas como contexto
+                                intent.putExtra("context",
+                                    data.articles.joinToString("\n") { it.title })
+                                context.startActivity(intent)
                                 capturedImageUri = Uri.EMPTY
                             }
                         }
