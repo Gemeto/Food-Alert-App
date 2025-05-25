@@ -53,14 +53,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CardColors
+import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TextField
+import androidx.compose.material3.SearchBar
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -70,6 +72,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -120,7 +123,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
     val context = LocalContext.current
@@ -141,29 +144,38 @@ fun HomeScreen(viewModel: HomeViewModel) {
             Text(text = "FATAL ERROR")
         }
         is UiResult.Loading -> {
-            Box(modifier = Modifier.fillMaxSize()) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CustomLoadingIndicator()
             }
         }
         is UiResult.Success -> {
             val searchText by viewModel.searchText.collectAsState()
             Scaffold(
                 bottomBar = {
-                    BottomAppBar(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TextField(
-                            value = searchText,
-                            onValueChange = viewModel::onSearchTextChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text(text = "Buscar...") }
-                        )
-                    }
+                    SearchBar(
+                        query = searchText,
+                        onQueryChange = viewModel::onSearchTextChange,
+                        onSearch = {
+                            viewModel.onSearchTextChange(searchText)
+                        },
+                        active = false,
+                        onActiveChange = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        placeholder = {
+                            Text("Buscar...")
+                        }
+                    ) {}
                 },
-                content = {
-                    Articles(data = state.data, viewModel = viewModel, onLoadMore = {
-                        viewModel.loadMoreArticles()
-                    })
+                content = { paddingValues ->
+                    Articles(
+                        data = state.data,
+                        viewModel = viewModel,
+                        onLoadMore = {
+                            viewModel.loadMoreArticles()
+                        },
+                    )
                 }
             )
         }
@@ -204,7 +216,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 75.dp),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(vertical = 30.dp, horizontal = 16.dp),
         state = listState
     ) {
         item {
@@ -253,7 +265,8 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                             intent.putExtra("description", HomeViewModel.HomeViewConstants.DESCRIPTION)
                             intent.putExtra("imageUrl", "https://i.stack.imgur.com/NTaY0.png")
                             intent.putExtra("link", "https://example.com")
-                            context.startActivity(intent)
+                            val result = context.startActivity(intent)
+                            Toast.makeText(context, result.toString(), Toast.LENGTH_SHORT).show()
                         } else {
                             permissionLauncher.launch("android.permission.CAMERA")
                         }
@@ -286,13 +299,24 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
         }
     }
     if(isLoadingMore || isSearching){
-        Box(modifier = Modifier.fillMaxSize()) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CustomLoadingIndicator()
         }
     }
     LazyListLoaderHandler(listState = listState, buffer = 1) {
         onLoadMore()
     }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Preview(showBackground = true)
+@Composable
+fun CustomLoadingIndicator() {
+    ContainedLoadingIndicator(
+        modifier = Modifier.size(200.dp),
+        containerColor = Color.Black,
+        indicatorColor = Color.White
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -304,6 +328,12 @@ fun ArticleItem(item: Article, onItemClicked: (Article) -> Unit) {
             .fillMaxWidth()
             .wrapContentHeight(),
         shape = MaterialTheme.shapes.medium,
+        colors = CardColors(
+            containerColor = MaterialTheme.colorScheme.secondary,
+            contentColor = MaterialTheme.colorScheme.primary,
+            disabledContainerColor = MaterialTheme.colorScheme.secondary,
+            disabledContentColor = MaterialTheme.colorScheme.primary
+        ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 2.dp
         ),

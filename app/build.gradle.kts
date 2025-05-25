@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "id.gemeto.rasff.notifier"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "id.gemeto.rasff.notifier"
         minSdk = 31
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -64,7 +64,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material3:material3-android:1.4.0-alpha14")
+    implementation("androidx.compose.material:material-icons-core")
     implementation("io.coil-kt:coil-compose:2.2.2")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
