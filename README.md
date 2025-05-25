@@ -183,6 +183,13 @@ El modelo Gemma-3N debe ubicarse en:
 /data/local/tmp/llm/gemma-3n-E2B-it-int4.task
 ```
 
+Puedes ubicarlo manualmente con los siguientes comandos:
+```
+$ adb shell rm -r /data/local/tmp/llm/ # Remove any previously loaded models
+$ adb shell mkdir -p /data/local/tmp/llm/
+$ adb push output_path /data/local/tmp/llm/model_version.task
+```
+
 ### WorkManager
 
 Las notificaciones automáticas se configuran con: [5](#0-4) 
