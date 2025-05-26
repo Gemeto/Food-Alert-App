@@ -37,6 +37,12 @@ import id.gemeto.rasff.notifier.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 import java.io.InputStream
 import androidx.core.net.toUri
+import androidx.room.Room
+import id.gemeto.rasff.notifier.data.AppDatabase
+import id.gemeto.rasff.notifier.data.ArticleDAO
+import id.gemeto.rasff.notifier.data.TitleVectorizerService
+import id.gemeto.rasff.notifier.ui.Article
+import id.gemeto.rasff.notifier.utils.VectorUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -130,13 +136,61 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
         }
     }
 
-    fun sendMessage(sysContext: String?) {
+    val _db = Room.databaseBuilder(
+        context = context,
+        AppDatabase::class.java, "database-alert-notifications"
+    ).build()
+    val _articleDao: ArticleDAO = _db.articleDao()
+    val _titleVectorizerService = TitleVectorizerService(context = context)
+
+    //Mappers
+    fun toDbArticle(uiArticle: Article, titleVector: List<Float>? = null): id.gemeto.rasff.notifier.data.Article {
+        return id.gemeto.rasff.notifier.data.Article(
+            id = uiArticle.link, // Assuming link is a unique identifier
+            title = uiArticle.title,
+            content = uiArticle.description,
+            titleVector = titleVector ?: emptyList()
+        )
+    }
+
+    fun toUiArticle(dbArticle: id.gemeto.rasff.notifier.data.Article): Article {
+        return Article(
+            title = dbArticle.title,
+            description = dbArticle.content,
+            link = dbArticle.id,
+            imageUrl = "", // Placeholder
+            unixTime = 0L // Placeholder
+        )
+    }
+
+    // Threshold for similarity; can be adjusted
+    val SIMILARITY_THRESHOLD = 0.7f
+    // Wrapper for articles with their similarity scores
+    data class ArticleWithSimilarity(val dbArticle: id.gemeto.rasff.notifier.data.Article, val similarity: Float)
+
+    suspend fun sendMessage(sysContext: String?) {
         if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
 
+        val queryVector = _titleVectorizerService.getVector(currentMessage) // Suspend call
+        val allDbArticles = _articleDao.getAll() // Suspend call
+
+        val articlesWithSimilarity = allDbArticles.map { dbArticle ->
+            val similarity = VectorUtils.cosineSimilarity(queryVector, dbArticle.titleVector)
+            ArticleWithSimilarity(dbArticle, similarity)
+        }
+
+        // Primary filter: similarity search
+        var filteredArticles = articlesWithSimilarity
+            .filter { it.similarity > SIMILARITY_THRESHOLD && it.similarity.isFinite() }
+            .sortedByDescending { it.similarity }
+            .take(4)
+            .map { it.dbArticle }
+
+        val scontext = filteredArticles.joinToString("\n") { it.title }
         // Agregar mensaje del usuario con imagen si existe
         val sysPrompt = "Eres un asistente capaz de leer el contexto de alertas alimentarias actuales y ver imagenes. Unicamente contesta a la pregunta del usuario. Contesta siempre en español."
-        //val msg = "$sysPrompt\n\nInformación de referencia:\n\n$sysContext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
-        val msg = "$sysPrompt\n\nPregunta:\n\n$currentMessage"
+        val msg = "$sysPrompt\n\nInformación de referencia:\n\n$scontext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
+        //val msg = "$sysPrompt\n\nPregunta:\n\n$currentMessage"
         messages = messages + ChatMessage(
             text = msg,
             isUser = true,
@@ -355,7 +409,10 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
             Spacer(modifier = Modifier.width(8.dp))
             // Botón de envío
             FloatingActionButton(
-                onClick = { sendMessage(sysContext ?: "Sin contexto") },
+                onClick = {
+                    scope.launch {
+                    sendMessage(sysContext)
+                }},
                 modifier = Modifier.size(56.dp),
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
@@ -418,7 +475,7 @@ fun ChatBubble(message: ChatMessage) {
                 // Mostrar texto si no está vacío
                 if (message.text.isNotBlank()) {
                     var textToDisplay = message.text
-                    if(message.isUser) {
+                    if(message.isUser && false) {
                         val originalText = message.text
                         val preguntaMarker = "\n\nPregunta:\n\n"
                         val respuestaMarker = "\n\nRespuesta:"

@@ -387,24 +387,3 @@ fun Context.createImageFile(): File {
     )
 }
 
-@Preview(showBackground = true)
-@Composable
-fun HomePreview() {
-    MyApplicationTheme {
-        Articles(
-            viewModel = HomeViewModel(),
-            data = HomeUiState(
-                articles = List(5) {
-                    Article(
-                        "Data Classes and Destructuring",
-                        "At the end of the last chapter, we saw how all objects in Kotlin inherit three functions from an open class called Any. Those functions are equals(), hashCode(), and toString(). In this chapter, we're going to learn about data classes ...",
-                        "https://typealias.com/start/kotlin-data-classes-and-destructuring/",
-                        "https://typealias.com/img/social/social-data-classes.png",
-                        0
-                    )
-                }
-            ),
-            onLoadMore = {}
-        )
-    }
-}

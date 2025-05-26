@@ -1,11 +1,14 @@
 package id.gemeto.rasff.notifier.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.Room
 import id.gemeto.rasff.notifier.data.AppDatabase
 import id.gemeto.rasff.notifier.data.ArticleDAO
 import id.gemeto.rasff.notifier.data.CloudService
+import id.gemeto.rasff.notifier.data.LastNotified
 import id.gemeto.rasff.notifier.data.TitleVectorizerService
 import id.gemeto.rasff.notifier.data.ktorClient
 import id.gemeto.rasff.notifier.ui.util.UiResult
@@ -18,9 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import id.gemeto.rasff.notifier.data.CloudServiceConstants // For NO_IMAGE_URL
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -31,10 +32,13 @@ import kotlinx.coroutines.withContext
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     //Dependencies
-    private val _db = AppDatabase.getDatabase(application) // Temporary instantiation
+    private val _db = Room.databaseBuilder(
+        context = application,
+        AppDatabase::class.java, "database-alert-notifications"
+    ).build()
     private val _articleDao: ArticleDAO = _db.articleDao()
     private val _cloudService = CloudService(ktorClient)
-    private val _titleVectorizerService = TitleVectorizerService() // Instantiate the service
+    private val _titleVectorizerService = TitleVectorizerService(context = application) // Instantiate the service
     private val _uiMapper = HomeUiMapper() // This might need adjustment
 
     //Mappers
@@ -42,7 +46,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return DbArticle(
             id = uiArticle.link, // Assuming link is a unique identifier
             title = uiArticle.title,
-            content = uiArticle.textBody,
+            content = uiArticle.description,
             titleVector = titleVector ?: emptyList()
         )
     }
@@ -50,9 +54,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun toUiArticle(dbArticle: DbArticle): UiArticle {
         return UiArticle(
             title = dbArticle.title,
-            textBody = dbArticle.content,
+            description = dbArticle.content,
             link = dbArticle.id,
-            imageLink = CloudServiceConstants.NO_IMAGE_URL, // Placeholder
+            imageUrl = "", // Placeholder
             unixTime = 0L // Placeholder
         )
     }
@@ -66,7 +70,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val isSearching = _isSearching.asStateFlow()
 
     // Threshold for similarity; can be adjusted
-    private val SIMILARITY_THRESHOLD = 0.1f
+    private val SIMILARITY_THRESHOLD = 0.7f
 
     // Wrapper for articles with their similarity scores
     private data class ArticleWithSimilarity(val dbArticle: DbArticle, val similarity: Float)
@@ -84,24 +88,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun canLoad(): Boolean = !_allArticlesLoaded && !_isSearching.value &&
             !_isLoadingMore.value && _uiStateUnfiltered.value is UiResult.Success
 
-    // Adjusted canLoadMore - this might need further refinement based on how _cloudService.lastRSSArticleDate is used
-    private fun canLoadMore(articlesInUi: List<UiArticle>, currentItemsCount: Int): Boolean  = !_isSearching.value &&
-            (articlesInUi.count { it.title.contains(searchText.value, true) } < (currentItemsCount + HomeViewConstants.ITEMS_PER_PAGE)
-            // TODO: Re-evaluate this condition: _cloudService.lastRSSArticleDate < articlesInUi.last().unixTime
-            // This might not be directly comparable if articlesInUi are from DB and unixTime is placeholder
-            )
-
-    private fun canLoadMoreSearching(articlesInUi: List<UiArticle>): Boolean  = !_allArticlesLoaded &&
+    private suspend fun canLoadMoreSearching(articlesInUi: List<UiArticle>): Boolean  = !_allArticlesLoaded &&
             totalSearchedArticles(articlesInUi) < HomeViewConstants.ITEMS_PER_PAGE
 
     private fun searchQuerys(): List<String> = searchText.value.trim().split(" ", "\n").map { it.lowercase().removeSuffix("s") }
 
-    private fun totalSearchedArticles(articles: List<UiArticle>): Int = articles.count { uiArticle ->
-        searchQuerys().any{ query ->
-            uiArticle.title.lowercase().contains(query)
-        }
+    //This function now also have in account the similarity findings
+    private suspend fun totalSearchedArticles(articles: List<UiArticle>): Int = articles.count { uiArticle ->
+        searchQuerys().any{ query -> uiArticle.title.lowercase().contains(query)
+                || VectorUtils.cosineSimilarity(_titleVectorizerService.getVector(query), _titleVectorizerService.getVector(uiArticle.title)) > SIMILARITY_THRESHOLD}
     }
-    private fun searchFilter(article: UiArticle): Boolean = searchQuerys().any{ query -> article.title.lowercase().contains(query)}
+    private suspend fun searchFilter(article: UiArticle): Boolean =
+        searchQuerys().any{ query -> article.title.lowercase().contains(query)
+                || VectorUtils.cosineSimilarity(_titleVectorizerService.getVector(query), _titleVectorizerService.getVector(article.title)) > SIMILARITY_THRESHOLD}
 
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
         .onEach { _isSearching.update { true } }
@@ -202,7 +201,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         if (newArticlesFetchedWhileSearching) {
                              val allLatestDbArticles = _articleDao.getAll()
                              val allLatestUiArticles = allLatestDbArticles.map { toUiArticle(it) }
-                            _uiStateUnfiltered.value = UiResult.Success(_uiMapper.map(allLatestUiArticles))
+                             val articles = withContext(Dispatchers.Default) { // Or Dispatchers.IO if it involves I/O
+                                 _uiMapper.map(allLatestUiArticles)
+                            }
+                            _uiStateUnfiltered.value = UiResult.Success(articles)
                             // The current processing will be superseded by the new emission.
                             // We can return current results and let it refresh.
                         }
@@ -216,13 +218,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
             } else { // query is empty
                 _isSearching.update { false }
-                if (unfilteredState is UiResult.Success) {
-                    // Simply return all articles from the unfiltered state
-                    unfilteredState
-                } else {
-                    // Pass through Loading/Fail states
-                    unfilteredState
-                }
+                unfilteredState
             }
         }
         .onEach { _isSearching.update { false } } // Ensure isSearching is reset
@@ -259,7 +255,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     articlesFromDb = withContext(Dispatchers.IO) { _articleDao.getAll() }
                     uiArticles = articlesFromDb.map { toUiArticle(it) }
                 }
-                val homeUiState = _uiMapper.map(uiArticles)
+                val homeUiState = withContext(Dispatchers.Default) { // Or Dispatchers.IO if it involves I/O
+                    _uiMapper.map(uiArticles)
+                }
                 _uiStateUnfiltered.value = UiResult.Success(homeUiState)
                 // _uiState will be updated by the combine flow based on _uiStateUnfiltered and searchText
             } catch (err: Throwable) {
