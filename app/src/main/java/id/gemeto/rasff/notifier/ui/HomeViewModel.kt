@@ -95,12 +95,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     //This function now also have in account the similarity findings
     private suspend fun totalSearchedArticles(articles: List<UiArticle>): Int = articles.count { uiArticle ->
-        searchQuerys().any{ query -> uiArticle.title.lowercase().contains(query)
-                || VectorUtils.cosineSimilarity(_titleVectorizerService.getVector(query), _titleVectorizerService.getVector(uiArticle.title)) > SIMILARITY_THRESHOLD}
+        searchQuerys().any{ query -> uiArticle.title.lowercase().contains(query) }
+    } + articles.count { uiArticle ->
+        VectorUtils.cosineSimilarity(_titleVectorizerService.getVector(searchText.value), _titleVectorizerService.getVector(uiArticle.title)) > SIMILARITY_THRESHOLD
     }
     private suspend fun searchFilter(article: UiArticle): Boolean =
-        searchQuerys().any{ query -> article.title.lowercase().contains(query)
-                || VectorUtils.cosineSimilarity(_titleVectorizerService.getVector(query), _titleVectorizerService.getVector(article.title)) > SIMILARITY_THRESHOLD}
+        searchQuerys().any{ query -> article.title.lowercase().contains(query) }
 
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
         .onEach { _isSearching.update { true } }
