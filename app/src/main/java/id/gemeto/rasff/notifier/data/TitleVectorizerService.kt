@@ -1,96 +1,130 @@
 package id.gemeto.rasff.notifier.data
 
-import android.content.Context
-import android.util.Log
-import com.google.mediapipe.tasks.core.BaseOptions
-import com.google.mediapipe.tasks.text.textembedder.TextEmbedder
-import com.google.mediapipe.tasks.text.textembedder.TextEmbedder.TextEmbedderOptions
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.google.ai.edge.localagents.rag.models.EmbedData
+import com.google.ai.edge.localagents.rag.models.EmbeddingRequest
+import com.google.ai.edge.localagents.rag.models.GeckoEmbeddingModel
+import com.google.common.collect.ImmutableList
+import kotlinx.coroutines.guava.await
+import java.util.Optional
 
-class TitleVectorizerService(
-    private val context: Context,
-    private val modelAssetPath: String = "universal_sentence_encoder.tflite",
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+/**
+ * Clase singleton para generar embeddings usando el modelo Gecko.
+ * Garantiza que solo exista una instancia en memoria, independientemente
+ * de desde cuántas actividades se intente instanciar.
+ */
+class TitleVectorizerService private constructor(
+    private val embeddingModelPath: String,
+    private val sentencePieceModelPath: String? = null,
+    private val useGpu: Boolean = true
 ) {
 
-    companion object {
-        private const val TAG = "TitleVectorizerService"
-    }
-
-    private var textEmbedder: TextEmbedder? = null
-    private var vectorSize: Int = 512 // Default, will be updated from embedder
+    private val geckoModel: GeckoEmbeddingModel
 
     init {
-        // Initialize the embedder
-        initializeEmbedder()
+        // Inicializar el modelo Gecko con los parámetros proporcionados
+        geckoModel = GeckoEmbeddingModel(
+            embeddingModelPath,
+            Optional.ofNullable(sentencePieceModelPath),
+            useGpu
+        )
     }
 
-    private fun initializeEmbedder() {
-        try {
-            val baseOptionsBuilder = BaseOptions.builder()
-                .setModelAssetPath(modelAssetPath)
+    /**
+     * Genera un vector de embedding para el texto de entrada.
+     *
+     * @param input El texto para el cual generar el embedding
+     * @param taskType El tipo de tarea (por defecto RETRIEVAL_DOCUMENT)
+     * @return List<Float> con el vector de embedding
+     */
+    suspend fun getVector(
+        input: String,
+        taskType: EmbedData.TaskType = EmbedData.TaskType.RETRIEVAL_DOCUMENT
+    ): List<Float> {
+        // Crear el objeto EmbedData con el texto de entrada
+        val cleanInput = input.replace("[0-9]".toRegex(), "").replace(".".toRegex(), "").replace("-".toRegex(), "").trim()
+        val embedData = EmbedData.builder<String>()
+            .setData(input)
+            .setTask(taskType)
+            .build()
 
-            val optionsBuilder = TextEmbedderOptions.builder()
-                .setBaseOptions(baseOptionsBuilder.build())
-                .setQuantize(false) // Set to false for float embeddings
-                .setL2Normalize(true) // Normalize embeddings
+        // Crear la solicitud de embedding
+        val embeddingRequest = EmbeddingRequest.create(ImmutableList.of(embedData))
 
-            val options = optionsBuilder.build()
-            textEmbedder = TextEmbedder.createFromOptions(context, options)
-
-            Log.i(TAG, "MediaPipe TextEmbedder initialized successfully with model: $modelAssetPath")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error initializing MediaPipe TextEmbedder: ${e.message}", e)
-            textEmbedder = null
-        }
+        // Obtener los embeddings de forma asíncrona y convertir a List<Float>
+        val embeddings = geckoModel.getEmbeddings(embeddingRequest).await()
+        return embeddings.toList()
     }
 
-    suspend fun getVector(title: String): List<Float> {
-        val embedder = textEmbedder
-        if (embedder == null) {
-            Log.e(TAG, "MediaPipe TextEmbedder not initialized. Returning zero vector.")
-            return List(vectorSize) { 0.0f }
+    /**
+     * Genera vectores de embedding para múltiples textos de entrada.
+     *
+     * @param inputs Lista de textos para los cuales generar embeddings
+     * @param taskType El tipo de tarea (por defecto RETRIEVAL_DOCUMENT)
+     * @return List<List<Float>> con los vectores de embedding
+     */
+    suspend fun getBatchVectors(
+        inputs: List<String>,
+        taskType: EmbedData.TaskType = EmbedData.TaskType.RETRIEVAL_DOCUMENT
+    ): List<List<Float>> {
+        if (inputs.isEmpty()) {
+            return emptyList()
         }
 
-        return withContext(ioDispatcher) {
-            try {
-                val embeddingResult = embedder.embed(title)
-                Log.d(TAG, " Titttle: $title, MediaPipe TextEmbedder result: $embeddingResult")
+        // Crear objetos EmbedData para cada texto de entrada
+        val embedDataList = inputs.map { input ->
+            EmbedData.builder<String>()
+                .setData(input)
+                .setTask(taskType)
+                .build()
+        }
 
-                if (embeddingResult.embeddingResult().embeddings().isNotEmpty()) {
-                    val sentenceEmbedding = embeddingResult.embeddingResult().embeddings()[0]
+        // Crear la solicitud de embedding por lotes
+        val embeddingRequest = EmbeddingRequest.create(ImmutableList.copyOf(embedDataList))
 
-                    // Get the float embedding (not quantized)
-                    val floatEmbedding = sentenceEmbedding.floatEmbedding()
+        // Obtener los embeddings de forma asíncrona
+        val embeddingsList = geckoModel.getBatchEmbeddings(embeddingRequest).await()
 
-                    // Update vector size based on actual embedding
-                    vectorSize = floatEmbedding.size
+        // Convertir ImmutableList<ImmutableList<Float>> a List<List<Float>>
+        return embeddingsList.map { it.toList() }
+    }
 
-                    // Log embedding information
-                    if (sentenceEmbedding.headName().isPresent) {
-                        Log.d(TAG, "Embedding head name: ${sentenceEmbedding.headName().get()}")
-                    }
-                    Log.d(TAG, "Embedding vector dimension: ${floatEmbedding.size}")
+    companion object {
+        @Volatile
+        private var INSTANCE: TitleVectorizerService? = null
 
-                    // Convert to List<Float>
-                    return@withContext floatEmbedding.toList()
-                } else {
-                    Log.w(TAG, "MediaPipe TextEmbedder returned no embeddings for title: $title")
-                    return@withContext List(vectorSize) { 0.0f }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during MediaPipe text embedding for title '$title': ${e.message}", e)
-                return@withContext List(vectorSize) { 0.0f }
+        /**
+         * Obtiene la instancia singleton del servicio.
+         * Thread-safe usando double-checked locking.
+         */
+        fun getInstance(
+            embeddingModelPath: String = "/data/local/tmp/gecko.tflite",
+            sentencePieceModelPath: String? = "/data/local/tmp/sentencepiece.model",
+            useGpu: Boolean = true
+        ): TitleVectorizerService {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: TitleVectorizerService(
+                    embeddingModelPath,
+                    sentencePieceModelPath,
+                    useGpu
+                ).also { INSTANCE = it }
             }
         }
-    }
 
-    fun close() {
-        textEmbedder?.close()
-        textEmbedder = null
-        Log.i(TAG, "MediaPipe TextEmbedder closed.")
+        /**
+         * Factory method para crear una instancia con rutas por defecto.
+         * Utiliza el patrón singleton internamente.
+         */
+        fun createDefault(): TitleVectorizerService {
+            return getInstance()
+        }
+
+        /**
+         * Método para limpiar la instancia singleton (útil para testing).
+         * ¡Usar con precaución en producción!
+         */
+        @Synchronized
+        fun clearInstance() {
+            INSTANCE = null
+        }
     }
 }

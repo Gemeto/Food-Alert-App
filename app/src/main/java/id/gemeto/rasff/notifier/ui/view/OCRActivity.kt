@@ -141,7 +141,11 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
         AppDatabase::class.java, "database-alert-notifications"
     ).build()
     val _articleDao: ArticleDAO = _db.articleDao()
-    val _titleVectorizerService = TitleVectorizerService(context = context)
+    val _titleVectorizerService = TitleVectorizerService.getInstance(
+        embeddingModelPath = "/data/local/tmp/gecko.tflite",
+        sentencePieceModelPath = "/data/local/tmp/sentencepiece.model",
+        useGpu = true
+    )
 
     //Mappers
     fun toDbArticle(uiArticle: Article, titleVector: List<Float>? = null): id.gemeto.rasff.notifier.data.Article {

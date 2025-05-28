@@ -38,7 +38,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     ).build()
     private val _articleDao: ArticleDAO = _db.articleDao()
     private val _cloudService = CloudService(ktorClient)
-    private val _titleVectorizerService = TitleVectorizerService(context = application) // Instantiate the service
+    private val _titleVectorizerService = TitleVectorizerService.getInstance(
+                embeddingModelPath = "/data/local/tmp/gecko.tflite",
+                sentencePieceModelPath = "/data/local/tmp/sentencepiece.model",
+                useGpu = true) // Instantiate the service
     private val _uiMapper = HomeUiMapper() // This might need adjustment
 
     //Mappers
@@ -119,7 +122,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 var filteredArticles = articlesWithSimilarity
                     .filter { it.similarity > SIMILARITY_THRESHOLD && it.similarity.isFinite() }
                     .sortedByDescending { it.similarity }
-                    .map { it.dbArticle }
+                    .take(5)
+                    .map { DbArticle( it.dbArticle.id, it.dbArticle.title + " " + it.similarity, it.dbArticle.content, it.dbArticle.titleVector) }
 
                 var usedSimilaritySearch = true
                 if (filteredArticles.isEmpty()) {
