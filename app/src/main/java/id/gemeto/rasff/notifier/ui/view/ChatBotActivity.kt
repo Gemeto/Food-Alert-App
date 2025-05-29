@@ -38,13 +38,16 @@ import kotlinx.coroutines.launch
 import java.io.InputStream
 import androidx.core.net.toUri
 import androidx.room.Room
+import com.google.mediapipe.tasks.components.containers.Embedding
+import com.google.mediapipe.tasks.components.utils.CosineSimilarity
 import id.gemeto.rasff.notifier.data.local.AppDatabase
 import id.gemeto.rasff.notifier.data.local.dao.ArticleDAO
 import id.gemeto.rasff.notifier.domain.service.TitleVectorizerService
 import id.gemeto.rasff.notifier.data.local.entity.Article
-import id.gemeto.rasff.notifier.utils.VectorUtils
+import id.gemeto.rasff.notifier.domain.service.TranslationService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Optional
 
 data class ChatMessage(
     val text: String,
@@ -146,20 +149,22 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
         sentencePieceModelPath = "/data/local/tmp/sentencepiece.model",
         useGpu = true
     )
+    val _translationService = TranslationService()
 
     // Threshold for similarity; can be adjusted
-    val SIMILARITY_THRESHOLD = 0.8f
+    val SIMILARITY_THRESHOLD = 0.7f
     // Wrapper for articles with their similarity scores
     data class ArticleWithSimilarity(val dbArticle: Article, val similarity: Float)
 
     suspend fun sendMessage(sysContext: String?) {
         if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
-
-        val queryVector = _titleVectorizerService.getVector(currentMessage) // Suspend call
-        val allDbArticles = _articleDao.getAll() // Suspend call
-
+        val queryVector = _titleVectorizerService.getVector(_translationService.translateTextToEnglish(currentMessage))
+        val allDbArticles = _articleDao.getAll()
         val articlesWithSimilarity = allDbArticles.map { dbArticle ->
-            val similarity = VectorUtils.cosineSimilarity(queryVector, dbArticle.titleVector)
+            val similarity = _titleVectorizerService.cosineSimilarity(
+                queryVector,
+                dbArticle.titleVector,
+            ).toFloat()
             ArticleWithSimilarity(dbArticle, similarity)
         }
 
@@ -362,7 +367,6 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
                 }
             }
         }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Bottom
@@ -375,9 +379,7 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
                 enabled = !isGenerating,
                 maxLines = 3
             )
-
             Spacer(modifier = Modifier.width(8.dp))
-
             FloatingActionButton(
                 onClick = { selectImage() },
                 modifier = Modifier.size(48.dp),
@@ -389,9 +391,7 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
                     tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
-
             Spacer(modifier = Modifier.width(8.dp))
-            // Botón de envío
             FloatingActionButton(
                 onClick = {
                     scope.launch {
@@ -443,7 +443,6 @@ fun ChatBubble(message: ChatMessage) {
             Column(
                 modifier = Modifier.padding(12.dp)
             ) {
-                // Mostrar imagen si existe
                 if (message.imageUri != null) {
                     AsyncImage(
                         model = message.imageUri,
@@ -456,10 +455,9 @@ fun ChatBubble(message: ChatMessage) {
                     )
                 }
 
-                // Mostrar texto si no está vacío
                 if (message.text.isNotBlank()) {
                     var textToDisplay = message.text
-                    if(message.isUser) {
+                    if(message.isUser && false) {
                         val originalText = message.text
                         val preguntaMarker = "\n\nPregunta:\n\n"
                         val respuestaMarker = "\n\nRespuesta:"

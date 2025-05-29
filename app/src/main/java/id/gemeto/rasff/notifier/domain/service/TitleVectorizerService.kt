@@ -6,6 +6,7 @@ import com.google.ai.edge.localagents.rag.models.GeckoEmbeddingModel
 import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.guava.await
 import java.util.Optional
+import kotlin.math.sqrt
 
 /**
  * Clase singleton para generar embeddings usando el modelo Gecko.
@@ -21,7 +22,6 @@ class TitleVectorizerService private constructor(
     private val geckoModel: GeckoEmbeddingModel
 
     init {
-        // Inicializar el modelo Gecko con los parámetros proporcionados
         geckoModel = GeckoEmbeddingModel(
             embeddingModelPath,
             Optional.ofNullable(sentencePieceModelPath),
@@ -40,52 +40,42 @@ class TitleVectorizerService private constructor(
         input: String,
         taskType: EmbedData.TaskType = EmbedData.TaskType.RETRIEVAL_DOCUMENT
     ): List<Float> {
-        // Crear el objeto EmbedData con el texto de entrada
-        val cleanInput = input.replace("[0-9]".toRegex(), "").replace(".".toRegex(), "").replace("-".toRegex(), "").trim()
+        val cleanInput = input.trim()
         val embedData = EmbedData.builder<String>()
-            .setData(input)
+            .setData(cleanInput)
             .setTask(taskType)
             .build()
-
-        // Crear la solicitud de embedding
         val embeddingRequest = EmbeddingRequest.create(ImmutableList.of(embedData))
-
-        // Obtener los embeddings de forma asíncrona y convertir a List<Float>
         val embeddings = geckoModel.getEmbeddings(embeddingRequest).await()
         return embeddings.toList()
     }
 
-    /**
-     * Genera vectores de embedding para múltiples textos de entrada.
-     *
-     * @param inputs Lista de textos para los cuales generar embeddings
-     * @param taskType El tipo de tarea (por defecto RETRIEVAL_DOCUMENT)
-     * @return List<List<Float>> con los vectores de embedding
-     */
-    suspend fun getBatchVectors(
-        inputs: List<String>,
-        taskType: EmbedData.TaskType = EmbedData.TaskType.RETRIEVAL_DOCUMENT
-    ): List<List<Float>> {
-        if (inputs.isEmpty()) {
-            return emptyList()
+    fun cosineSimilarity(vec1: List<Float>, vec2: List<Float>): Float {
+        if (vec1.size != vec2.size) {
+            return 0.0f
+        }
+        if (vec1.isEmpty()) {
+            return 0.0f
         }
 
-        // Crear objetos EmbedData para cada texto de entrada
-        val embedDataList = inputs.map { input ->
-            EmbedData.builder<String>()
-                .setData(input)
-                .setTask(taskType)
-                .build()
+        var dotProduct = 0.0f
+        var magnitude1 = 0.0f
+        var magnitude2 = 0.0f
+
+        for (i in vec1.indices) {
+            dotProduct += vec1[i] * vec2[i]
+            magnitude1 += vec1[i] * vec1[i]
+            magnitude2 += vec2[i] * vec2[i]
         }
 
-        // Crear la solicitud de embedding por lotes
-        val embeddingRequest = EmbeddingRequest.create(ImmutableList.copyOf(embedDataList))
+        magnitude1 = sqrt(magnitude1)
+        magnitude2 = sqrt(magnitude2)
 
-        // Obtener los embeddings de forma asíncrona
-        val embeddingsList = geckoModel.getBatchEmbeddings(embeddingRequest).await()
-
-        // Convertir ImmutableList<ImmutableList<Float>> a List<List<Float>>
-        return embeddingsList.map { it.toList() }
+        return if (magnitude1 == 0.0f || magnitude2 == 0.0f) {
+            0.0f // Division by zero, vectors have no magnitude or are zero vectors
+        } else {
+            dotProduct / (magnitude1 * magnitude2)
+        }
     }
 
     companion object {
