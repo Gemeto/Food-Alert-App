@@ -164,7 +164,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     _articleDao.insertAll(dbArticlesToInsert)
                     articlesFromDb = withContext(Dispatchers.IO) { _articleDao.getAll() }
-                    uiArticles = articlesFromDb.map { toUiArticle(it) }
+                    uiArticles = articlesFromDb.map { toUiArticle(it) }.sortedByDescending { it.unixTime }
                 }
 
                 val currentArticles = uiArticles.count { keywordSearchFilter(it) }
@@ -189,7 +189,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         _articleDao.insertAll(newDbArticles)
                         articlesFromDb = withContext(Dispatchers.IO) { _articleDao.getAll() }
-                        uiArticles = articlesFromDb.map { toUiArticle(it) }
+                        uiArticles = articlesFromDb.map { toUiArticle(it) }.sortedByDescending { it.unixTime }
                     }
                 }
                 val homeUiState = withContext(Dispatchers.Default) {
@@ -228,7 +228,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         var allDbArticles = withContext(Dispatchers.IO) { _articleDao.getAll() }
                         var allUiArticles = allDbArticles.map { toUiArticle(it) }.sortedByDescending { it.unixTime }
                         val currentArticles = allUiArticles.count { keywordSearchFilter(it) }
-                        while(hasMoreToLoad(allUiArticles, currentArticles, true)){
+                        while(hasMoreToLoad(allUiArticles, currentArticles)){
                             _page.update { _page.value + 1 }
                             val newArticles = _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
                             if(newArticles.isEmpty()){
