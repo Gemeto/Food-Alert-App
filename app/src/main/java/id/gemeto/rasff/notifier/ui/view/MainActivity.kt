@@ -269,18 +269,23 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                         .distinctUntilChanged()
                         .collect {
                             if (capturedImageUri.path?.isNotEmpty() == true) {
-                                val intent = Intent(context, OCRActivity::class.java)
+                                val intent = Intent(context, ChatBotActivity::class.java)
                                 intent.putExtra("title", "Gemma 3n Chat")
                                 intent.putExtra("imageUri", capturedImageUri.toString())
-                                //Obtenemos todos los titulos de las alertas como contexto
-                                intent.putExtra("context",
-                                    data.articles.joinToString("\n") { it.title })
                                 context.startActivity(intent)
                                 capturedImageUri = Uri.EMPTY
                             }
                         }
                 }
-
+                Button(
+                    content = { Text("Conversar con Gemma 3N") },
+                    modifier = Modifier.fillMaxHeight(),
+                    onClick = {
+                        val intent = Intent(context, ChatBotActivity::class.java)
+                        intent.putExtra("title", "Gemma 3n Chat")
+                        context.startActivity(intent)
+                    }
+                )
             }
         }
         if(!isSearching) {

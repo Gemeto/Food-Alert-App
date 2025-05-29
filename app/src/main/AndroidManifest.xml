@@ -44,7 +44,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="id.gemeto.rasff.notifier.ui.view.OCRActivity"
+            android:name="id.gemeto.rasff.notifier.ui.view.ChatBotActivity"
             android:exported="true"
             android:theme="@style/Theme.MyApplication">
             <intent-filter>

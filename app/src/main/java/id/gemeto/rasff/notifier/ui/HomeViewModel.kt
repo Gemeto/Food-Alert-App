@@ -15,7 +15,6 @@ import kotlinx.coroutines.Dispatchers
 import id.gemeto.rasff.notifier.ui.Article as UiArticle
 import id.gemeto.rasff.notifier.data.mapper.ArticleMapper.Companion.toDbArticle
 import id.gemeto.rasff.notifier.data.mapper.ArticleMapper.Companion.toUiArticle
-import id.gemeto.rasff.notifier.domain.service.TranslationService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -37,7 +36,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         context = application,
         AppDatabase::class.java, "database-alert-notifications"
     ).build()
-    private val _translationService = TranslationService()
     private val _articleDao: ArticleDAO = _db.articleDao()
     private val _cloudService = CloudService(ktorClient)
     private val _titleVectorizerService = TitleVectorizerService.getInstance(
@@ -59,6 +57,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val isLoadingMore = _isLoadingMore.asStateFlow()
     private val _page = MutableStateFlow(0)
     private var _allRemoteArticlesLoaded = false
+    private var similaritySearchText: String = ""
+    private var similartySearchVector: List<Float> = emptyList()
 
     //Objects and functions
     object HomeViewConstants {
@@ -73,8 +73,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         searchKeywords().any{ query -> article.title.lowercase().contains(query) }
 
     private suspend fun searchSimilarity(article: UiArticle): Float = withContext(Dispatchers.IO) {
+        if(similaritySearchText != searchText.value) {
+            similartySearchVector = _titleVectorizerService.getVector(searchText.value)
+            similaritySearchText = searchText.value
+        }
         _titleVectorizerService.cosineSimilarity(
-            _titleVectorizerService.getVector(_translationService.translateTextToEnglish(searchText.value)),
+            similartySearchVector,
             article.titleVector,
         ).toFloat()
     }
@@ -88,8 +92,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun hasMoreToLoad(currentArticles: List<Article>, nInitItems: Int, isArticlesInit: Boolean = false): Boolean  =
         !_allRemoteArticlesLoaded && !_isSearching.value
-        && (currentArticles.count { keywordSearchFilter(it) && similaritySearchFilter(it) } < (nInitItems + if(isArticlesInit) 0 else HomeViewConstants.ITEMS_PER_PAGE)
-        || _cloudService.lastRSSArticleDate < currentArticles.last().unixTime) // This is to ensure list will always have articles from any src older than the last one
+        && ((searchText.value.isEmpty() && currentArticles.size < (nInitItems + if(isArticlesInit) 0 else HomeViewConstants.ITEMS_PER_PAGE))
+        || (!searchText.value.isEmpty() && currentArticles.count { keywordSearchFilter(it) && similaritySearchFilter(it) } < (nInitItems + if(isArticlesInit) 0 else HomeViewConstants.ITEMS_PER_PAGE))
+        || _cloudService.lastRSSArticleDate < currentArticles.last().unixTime) // TODO: improve. This is to ensure list will always have articles from any src older than the last one
 
     data class ArticleWithSimilarity(val dbArticle: UiArticle, val similarity: Float)
 
@@ -101,9 +106,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 var finalUiArticles = List<Article>(0){ Article("", "", "", "", 0, floatArrayOf(0.0f).toList()) }
 
                 if (unfilteredState is UiResult.Success) {
-//                    finalUiArticles = unfilteredState.data.articles.filter {
-//                            article -> keywordSearchFilter(article)
-//                    }
+                    finalUiArticles = unfilteredState.data.articles.filter {
+                            article -> keywordSearchFilter(article)
+                    }
 
                     finalUiArticles = finalUiArticles
                         .plus(unfilteredState.data.articles
@@ -111,8 +116,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                             .filter { similaritySearchFilter(it.dbArticle) }
                             .sortedByDescending { it.similarity }
                             .take(5)
-                            .map { it.dbArticle.copy(title = it.dbArticle.title + " " + it.similarity) })
-                        //.distinctBy { it.link }
+                            .map { it.dbArticle })
+                        .distinctBy { it.link }
 
                 } else {
                     _isSearching.update { false }
@@ -148,7 +153,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 if(uiArticles.isEmpty() || !newestArticleLoaded) {
                     val dbArticlesToInsert = withContext(Dispatchers.IO) {
                         cloudArticles.map { uiArticle ->
-                            val title = _translationService.translateTextToEnglish(uiArticle.title)
+                            val title = uiArticle.title
                                 .replace("[0-9]".toRegex(), "")
                                 .replace("\\.".toRegex(), "")
                                 .replace("-".toRegex(), "")
@@ -166,14 +171,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 while(hasMoreToLoad(uiArticles, currentArticles, newestArticleLoaded)){
                     _page.update { _page.value + 1 }
                     val newArticles = _cloudService.getHTMLArticles(_page.value, HomeViewConstants.ITEMS_PER_PAGE)
-                    if(newArticles.isEmpty() || newestArticleLoaded){
+                    if(newArticles.isEmpty()){
                         _allRemoteArticlesLoaded = true
                         break
                     }
                     if(uiArticles.size != uiArticles.plus(newArticles).distinctBy { it.link }.size){
                         val newDbArticles = withContext(Dispatchers.IO) {
                             newArticles.map { uiArticle ->
-                                val title = _translationService.translateTextToEnglish(uiArticle.title)
+                                val title = uiArticle.title
                                     .replace("[0-9]".toRegex(), "")
                                     .replace("\\.".toRegex(), "")
                                     .replace("-".toRegex(), "")
@@ -210,7 +215,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     if (newCloudArticles.isNotEmpty()) {
                         val newDbArticles = withContext(Dispatchers.IO) {
                             newCloudArticles.map { uiArticle ->
-                                val title = _translationService.translateTextToEnglish(uiArticle.title)
+                                val title = uiArticle.title
                                     .replace("[0-9]".toRegex(), "")
                                     .replace("\\.".toRegex(), "")
                                     .replace("-".toRegex(), "")
@@ -233,7 +238,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                             if(allUiArticles.size != allUiArticles.plus(newArticles).distinctBy { it.link }.size){
                                 val newDbArticles = withContext(Dispatchers.IO) {
                                     newArticles.map { uiArticle ->
-                                        val title = _translationService.translateTextToEnglish(uiArticle.title)
+                                        val title = uiArticle.title
                                             .replace("[0-9]".toRegex(), "")
                                             .replace("\\.".toRegex(), "")
                                             .replace("-".toRegex(), "")
