@@ -1,4 +1,4 @@
-package id.gemeto.rasff.notifier.data
+package id.gemeto.rasff.notifier.data.local.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity

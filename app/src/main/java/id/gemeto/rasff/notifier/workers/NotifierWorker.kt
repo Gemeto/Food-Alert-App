@@ -17,10 +17,10 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import id.gemeto.rasff.notifier.ui.view.MainActivity
 import id.gemeto.rasff.notifier.R
-import id.gemeto.rasff.notifier.data.AppDatabase
-import id.gemeto.rasff.notifier.data.CloudService
-import id.gemeto.rasff.notifier.data.LastNotified
-import id.gemeto.rasff.notifier.data.ktorClient
+import id.gemeto.rasff.notifier.data.local.AppDatabase
+import id.gemeto.rasff.notifier.data.remote.CloudService
+import id.gemeto.rasff.notifier.data.local.entity.LastNotified
+import id.gemeto.rasff.notifier.data.remote.ktorClient
 import java.util.UUID
 
 class NotifierWorker(private val appContext: Context, params: WorkerParameters) :

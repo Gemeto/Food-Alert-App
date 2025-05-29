@@ -1,4 +1,4 @@
-package id.gemeto.rasff.notifier.data
+package id.gemeto.rasff.notifier.data.local
 
 import androidx.room.TypeConverter
 

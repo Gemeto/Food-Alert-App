@@ -1,4 +1,4 @@
-package id.gemeto.rasff.notifier.data
+package id.gemeto.rasff.notifier.data.remote
 
 import android.util.Log
 import com.fleeksoft.ksoup.Ksoup

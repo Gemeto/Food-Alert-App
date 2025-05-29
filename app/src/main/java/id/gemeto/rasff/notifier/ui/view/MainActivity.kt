@@ -132,9 +132,10 @@ fun HomeScreen(viewModel: HomeViewModel) {
         RuntimePermissionsDialog(
             Manifest.permission.POST_NOTIFICATIONS,
             onPermissionDenied = {
+                Toast.makeText(context, "Notifications Permission Denied", Toast.LENGTH_SHORT).show()
             },
             onPermissionGranted = {
-                Toast.makeText(context, "Notifications Permission Denied", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Notifications Permission Granted", Toast.LENGTH_SHORT).show()
             },
         )
     }
@@ -283,7 +284,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
             }
         }
         if(!isSearching) {
-            items(data.articles) { item ->
+            items(data.articles, key = { item -> item.link }) { item ->
                 ArticleItem(item) { article ->
                     val intent = Intent(context, DetailActivity::class.java)
                     intent.putExtra("title", article.title)

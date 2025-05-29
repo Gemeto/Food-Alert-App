@@ -38,9 +38,10 @@ import kotlinx.coroutines.launch
 import java.io.InputStream
 import androidx.core.net.toUri
 import androidx.room.Room
-import id.gemeto.rasff.notifier.data.AppDatabase
-import id.gemeto.rasff.notifier.data.ArticleDAO
-import id.gemeto.rasff.notifier.data.TitleVectorizerService
+import id.gemeto.rasff.notifier.data.local.AppDatabase
+import id.gemeto.rasff.notifier.data.local.dao.ArticleDAO
+import id.gemeto.rasff.notifier.domain.service.TitleVectorizerService
+import id.gemeto.rasff.notifier.data.local.entity.Article
 import id.gemeto.rasff.notifier.utils.VectorUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -147,9 +148,9 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
     )
 
     // Threshold for similarity; can be adjusted
-    val SIMILARITY_THRESHOLD = 0.7f
+    val SIMILARITY_THRESHOLD = 0.8f
     // Wrapper for articles with their similarity scores
-    data class ArticleWithSimilarity(val dbArticle: id.gemeto.rasff.notifier.data.Article, val similarity: Float)
+    data class ArticleWithSimilarity(val dbArticle: Article, val similarity: Float)
 
     suspend fun sendMessage(sysContext: String?) {
         if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
@@ -166,7 +167,7 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
         var filteredArticles = articlesWithSimilarity
             .filter { it.similarity > SIMILARITY_THRESHOLD && it.similarity.isFinite() }
             .sortedByDescending { it.similarity }
-            .take(4)
+            .take(5)
             .map { it.dbArticle }
 
         val scontext = filteredArticles.joinToString("\n") { it.title }

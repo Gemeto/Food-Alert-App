@@ -1,4 +1,4 @@
-package id.gemeto.rasff.notifier.data
+package id.gemeto.rasff.notifier.domain.service
 
 import com.google.ai.edge.localagents.rag.models.EmbedData
 import com.google.ai.edge.localagents.rag.models.EmbeddingRequest
