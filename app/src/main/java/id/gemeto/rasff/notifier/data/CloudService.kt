@@ -55,7 +55,7 @@ class CloudService(private val httpClient: HttpClient) {
                             val date = LocalDate.parse(textDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                             unixTime = date.atStartOfDay(ZoneId.systemDefault()).toInstant().epochSecond
                         }
-                        articles.add(Article(value.select("title").text(), value.select("description").text(), extractFirstHttpsUrl(value.toString()), CloudServiceConstants.NO_IMAGE_URL, unixTime))
+                        articles.add(Article(value.select("title").text(), value.select("description").text(), extractFirstHttpsUrl(value.toString()), CloudServiceConstants.NO_IMAGE_URL, unixTime, floatArrayOf(0.0f).toList()))
                     }catch(_: Exception){
 
                     }
@@ -103,7 +103,7 @@ class CloudService(private val httpClient: HttpClient) {
                                 unixTime = date.atStartOfDay(ZoneId.systemDefault()).toInstant().epochSecond
                             }
                             articles.add(Article(value.text(), content[index+1].text(), link,
-                                if(!imageSrc.isNullOrEmpty() && link.contains("aesan.gob.es", true)) { domain + imageSrc } else CloudServiceConstants.NO_IMAGE_URL, unixTime))
+                                if(!imageSrc.isNullOrEmpty() && link.contains("aesan.gob.es", true)) { domain + imageSrc } else CloudServiceConstants.NO_IMAGE_URL, unixTime, floatArrayOf(0.0f).toList()))
                         }
                     }catch(_: Exception){
 

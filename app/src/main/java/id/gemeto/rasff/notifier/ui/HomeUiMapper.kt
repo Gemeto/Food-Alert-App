@@ -20,7 +20,7 @@ class HomeUiMapper {
         val orderedArticles = articles.sortedByDescending { item -> item.unixTime }
         return HomeUiState(
             articles = orderedArticles.map { item ->
-                Article(translateTextToSpanish(item.title), translateTextToSpanish(item.description), item.link, item.imageUrl, item.unixTime)
+                Article(translateTextToSpanish(item.title), translateTextToSpanish(item.description), item.link, item.imageUrl, item.unixTime, item.titleVector)
             }
         )
     }

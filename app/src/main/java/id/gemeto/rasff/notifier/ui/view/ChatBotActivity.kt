@@ -41,7 +41,6 @@ import androidx.room.Room
 import id.gemeto.rasff.notifier.data.AppDatabase
 import id.gemeto.rasff.notifier.data.ArticleDAO
 import id.gemeto.rasff.notifier.data.TitleVectorizerService
-import id.gemeto.rasff.notifier.ui.Article
 import id.gemeto.rasff.notifier.utils.VectorUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -146,26 +145,6 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
         sentencePieceModelPath = "/data/local/tmp/sentencepiece.model",
         useGpu = true
     )
-
-    //Mappers
-    fun toDbArticle(uiArticle: Article, titleVector: List<Float>? = null): id.gemeto.rasff.notifier.data.Article {
-        return id.gemeto.rasff.notifier.data.Article(
-            id = uiArticle.link, // Assuming link is a unique identifier
-            title = uiArticle.title,
-            content = uiArticle.description,
-            titleVector = titleVector ?: emptyList()
-        )
-    }
-
-    fun toUiArticle(dbArticle: id.gemeto.rasff.notifier.data.Article): Article {
-        return Article(
-            title = dbArticle.title,
-            description = dbArticle.content,
-            link = dbArticle.id,
-            imageUrl = "", // Placeholder
-            unixTime = 0L // Placeholder
-        )
-    }
 
     // Threshold for similarity; can be adjusted
     val SIMILARITY_THRESHOLD = 0.7f
@@ -479,7 +458,7 @@ fun ChatBubble(message: ChatMessage) {
                 // Mostrar texto si no está vacío
                 if (message.text.isNotBlank()) {
                     var textToDisplay = message.text
-                    if(message.isUser && false) {
+                    if(message.isUser) {
                         val originalText = message.text
                         val preguntaMarker = "\n\nPregunta:\n\n"
                         val respuestaMarker = "\n\nRespuesta:"

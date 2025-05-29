@@ -58,8 +58,6 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava")
-    implementation("com.google.mediapipe:tasks-text:0.10.14")
-    implementation("com.microsoft.onnxruntime:onnxruntime:1.21.0")
     implementation("com.google.ai.edge.localagents:localagents-rag:0.1.0")
     implementation("com.google.mediapipe:tasks-genai:0.10.24")
     implementation("com.google.mediapipe:tasks-vision:latest.release")

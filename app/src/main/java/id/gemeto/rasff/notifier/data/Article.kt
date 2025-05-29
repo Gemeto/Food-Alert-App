@@ -16,6 +16,12 @@ data class Article(
     @ColumnInfo(name = "content")
     val content: String,
 
+    @ColumnInfo(name = "image_url")
+    val imageUrl: String,
+
+    @ColumnInfo(name = "unix_time")
+    val unixTime: Long,
+
     @ColumnInfo(name = "title_vector")
     val titleVector: List<Float>
 )

@@ -12,5 +12,6 @@ data class Article(
     val description: String,
     val link: String,
     val imageUrl: String,
-    val unixTime: Long
+    val unixTime: Long,
+    val titleVector: List<Float>
 )
