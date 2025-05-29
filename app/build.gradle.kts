@@ -57,6 +57,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.9.0")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava")
+    implementation("com.google.ai.edge.localagents:localagents-rag:0.1.0")
     implementation("com.google.mediapipe:tasks-genai:0.10.24")
     implementation("com.google.mediapipe:tasks-vision:latest.release")
 
@@ -75,6 +77,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.2")
     val room_version = "2.6.1"
     implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
 
     implementation("io.ktor:ktor-client-cio:2.3.11")

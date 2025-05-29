@@ -37,6 +37,11 @@ import id.gemeto.rasff.notifier.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 import java.io.InputStream
 import androidx.core.net.toUri
+import androidx.room.Room
+import id.gemeto.rasff.notifier.data.local.AppDatabase
+import id.gemeto.rasff.notifier.data.local.dao.ArticleDAO
+import id.gemeto.rasff.notifier.data.local.entity.Article
+import id.gemeto.rasff.notifier.domain.service.TitleVectorizerService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -47,7 +52,7 @@ data class ChatMessage(
     val imageUri: Uri? = null
 )
 
-class OCRActivity : ComponentActivity() {
+class ChatBotActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,10 +65,9 @@ class OCRActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    OCRScreen(
+                    ChatBotScreen(
                         title = title,
-                        imageUri = imageUri,
-                        sysContext = context
+                        imageUri = imageUri
                     )
                 }
             }
@@ -73,7 +77,7 @@ class OCRActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
+fun ChatBotScreen(title: String?, imageUri: String?) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -101,6 +105,36 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
     // Estado para LlmInference, inicializado a null
     var llmInference by remember { mutableStateOf<LlmInference?>(null) }
     var llmError by remember { mutableStateOf<String?>(null) } // Para mostrar errores de carga del modelo
+
+    val _titleVectorizerService = TitleVectorizerService.getInstance(
+        embeddingModelPath = "/data/local/tmp/gecko.tflite",
+        sentencePieceModelPath = "/data/local/tmp/sentencepiece.model",
+        useGpu = true
+    )
+    val SIMILARITY_THRESHOLD = 0.8f
+    var similaritySearchText: String = ""
+    var similartySearchVector: List<Float> = emptyList()
+
+    data class ArticleWithSimilarity(val dbArticle: Article, val similarity: Float)
+
+    fun searchKeywords(query: String): List<String> = query.trim().split(" ", "\n").map { it.lowercase().removeSuffix("s") }
+
+    fun keywordSearchFilter(query: String, article: ArticleWithSimilarity): Boolean =
+        searchKeywords(query).any{ query -> article.dbArticle.title.lowercase().contains(query) }
+
+    suspend fun searchSimilarity(query: String, article: Article): Float = withContext(Dispatchers.IO) {
+        if(similaritySearchText != query) {
+            similartySearchVector = _titleVectorizerService.getVector(query)
+            similaritySearchText = query
+        }
+        _titleVectorizerService.cosineSimilarity(
+            similartySearchVector,
+            article.titleVector,
+        ).toFloat()
+    }
+
+    suspend fun similaritySearchFilter(query: String, article: Article): Boolean =
+        searchSimilarity(query, article) > SIMILARITY_THRESHOLD
 
     // LaunchedEffect para inicializar LLM en un hilo de fondo
     LaunchedEffect(Unit) { // Se ejecuta solo una vez cuando el composable entra en la composición
@@ -130,13 +164,42 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
         }
     }
 
-    fun sendMessage(sysContext: String?) {
-        if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
+    val _db = Room.databaseBuilder(
+        context = context,
+        AppDatabase::class.java, "database-alert-notifications"
+    ).build()
+    val _articleDao: ArticleDAO = _db.articleDao()
 
+    suspend fun sendMessage() {
+        if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
+        val queryVector = _titleVectorizerService.getVector(currentMessage)
+        val allDbArticles = _articleDao.getAll()
+        val articlesWithSimilarity = allDbArticles.map { dbArticle ->
+            val similarity = _titleVectorizerService.cosineSimilarity(
+                queryVector,
+                dbArticle.titleVector,
+            ).toFloat()
+            ArticleWithSimilarity(dbArticle, similarity)
+        }
+
+        var kekywordFilteredArticles = articlesWithSimilarity.filter {
+                article -> keywordSearchFilter(currentMessage, article)
+        }
+        var filteredArticles = kekywordFilteredArticles
+            .map { it.dbArticle }
+            .plus(articlesWithSimilarity
+                .filter { similaritySearchFilter(currentMessage, it.dbArticle) }
+                .sortedByDescending { it.similarity }
+                .take(5)
+                .map { it.dbArticle })
+            .distinctBy { it.id }
+            .take(8)
+
+        val ragContext = filteredArticles.joinToString("\n") { it.title }
         // Agregar mensaje del usuario con imagen si existe
         val sysPrompt = "Eres un asistente capaz de leer el contexto de alertas alimentarias actuales y ver imagenes. Unicamente contesta a la pregunta del usuario. Contesta siempre en español."
-        //val msg = "$sysPrompt\n\nInformación de referencia:\n\n$sysContext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
-        val msg = "$sysPrompt\n\nPregunta:\n\n$currentMessage"
+        val msg = "$sysPrompt\n\nInformación de referencia:\n\n$ragContext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
+        //val msg = "$sysPrompt\n\nPregunta:\n\n$currentMessage"
         messages = messages + ChatMessage(
             text = msg,
             isUser = true,
@@ -324,7 +387,6 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
                 }
             }
         }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Bottom
@@ -337,9 +399,7 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
                 enabled = !isGenerating,
                 maxLines = 3
             )
-
             Spacer(modifier = Modifier.width(8.dp))
-
             FloatingActionButton(
                 onClick = { selectImage() },
                 modifier = Modifier.size(48.dp),
@@ -351,11 +411,12 @@ fun OCRScreen(title: String?, imageUri: String?, sysContext: String?) {
                     tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
-
             Spacer(modifier = Modifier.width(8.dp))
-            // Botón de envío
             FloatingActionButton(
-                onClick = { sendMessage(sysContext ?: "Sin contexto") },
+                onClick = {
+                    scope.launch {
+                    sendMessage()
+                }},
                 modifier = Modifier.size(56.dp),
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
@@ -402,7 +463,6 @@ fun ChatBubble(message: ChatMessage) {
             Column(
                 modifier = Modifier.padding(12.dp)
             ) {
-                // Mostrar imagen si existe
                 if (message.imageUri != null) {
                     AsyncImage(
                         model = message.imageUri,
@@ -415,7 +475,6 @@ fun ChatBubble(message: ChatMessage) {
                     )
                 }
 
-                // Mostrar texto si no está vacío
                 if (message.text.isNotBlank()) {
                     var textToDisplay = message.text
                     if(message.isUser) {
@@ -475,10 +534,9 @@ fun OCRPreview() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            OCRScreen(
+            ChatBotScreen(
                 title = "Chat con Gemma 3N",
-                imageUri = "",
-                sysContext = "Sin contexto"
+                imageUri = ""
             )
         }
     }

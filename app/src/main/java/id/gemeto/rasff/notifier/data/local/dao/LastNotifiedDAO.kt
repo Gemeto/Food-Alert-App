@@ -1,9 +1,10 @@
-package id.gemeto.rasff.notifier.data
+package id.gemeto.rasff.notifier.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import id.gemeto.rasff.notifier.data.local.entity.LastNotified
 
 @Dao
 interface LastNotifiedDAO {

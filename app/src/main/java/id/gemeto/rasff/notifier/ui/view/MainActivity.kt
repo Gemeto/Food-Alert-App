@@ -40,6 +40,7 @@ import id.gemeto.rasff.notifier.ui.util.UiResult
 import id.gemeto.rasff.notifier.workers.NotifierWorker
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -131,9 +132,10 @@ fun HomeScreen(viewModel: HomeViewModel) {
         RuntimePermissionsDialog(
             Manifest.permission.POST_NOTIFICATIONS,
             onPermissionDenied = {
+                Toast.makeText(context, "Notifications Permission Denied", Toast.LENGTH_SHORT).show()
             },
             onPermissionGranted = {
-                Toast.makeText(context, "Notifications Permission Denied", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Notifications Permission Granted", Toast.LENGTH_SHORT).show()
             },
         )
     }
@@ -267,22 +269,27 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                         .distinctUntilChanged()
                         .collect {
                             if (capturedImageUri.path?.isNotEmpty() == true) {
-                                val intent = Intent(context, OCRActivity::class.java)
+                                val intent = Intent(context, ChatBotActivity::class.java)
                                 intent.putExtra("title", "Gemma 3n Chat")
                                 intent.putExtra("imageUri", capturedImageUri.toString())
-                                //Obtenemos todos los titulos de las alertas como contexto
-                                intent.putExtra("context",
-                                    data.articles.joinToString("\n") { it.title })
                                 context.startActivity(intent)
                                 capturedImageUri = Uri.EMPTY
                             }
                         }
                 }
-
+                Button(
+                    content = { Text("Conversar con Gemma 3N") },
+                    modifier = Modifier.fillMaxHeight(),
+                    onClick = {
+                        val intent = Intent(context, ChatBotActivity::class.java)
+                        intent.putExtra("title", "Gemma 3n Chat")
+                        context.startActivity(intent)
+                    }
+                )
             }
         }
         if(!isSearching) {
-            items(data.articles) { item ->
+            items(data.articles, key = { item -> item.link }) { item ->
                 ArticleItem(item) { article ->
                     val intent = Intent(context, DetailActivity::class.java)
                     intent.putExtra("title", article.title)
@@ -392,7 +399,7 @@ fun Context.createImageFile(): File {
 fun HomePreview() {
     MyApplicationTheme {
         Articles(
-            viewModel = HomeViewModel(),
+            viewModel = HomeViewModel(application = LocalContext.current.applicationContext as Application),
             data = HomeUiState(
                 articles = List(5) {
                     Article(
@@ -400,7 +407,8 @@ fun HomePreview() {
                         "At the end of the last chapter, we saw how all objects in Kotlin inherit three functions from an open class called Any. Those functions are equals(), hashCode(), and toString(). In this chapter, we're going to learn about data classes ...",
                         "https://typealias.com/start/kotlin-data-classes-and-destructuring/",
                         "https://typealias.com/img/social/social-data-classes.png",
-                        0
+                        0,
+                        floatArrayOf(0.0f).toList()
                     )
                 }
             ),

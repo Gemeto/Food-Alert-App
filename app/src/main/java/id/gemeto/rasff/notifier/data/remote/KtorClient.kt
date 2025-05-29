@@ -1,9 +1,8 @@
-package id.gemeto.rasff.notifier.data
+package id.gemeto.rasff.notifier.data.remote
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.engine.cio.endpoint
-import io.ktor.client.plugins.HttpTimeout
 
 val ktorClient = HttpClient(CIO){
     engine {
