@@ -47,6 +47,7 @@ import id.gemeto.rasff.notifier.data.local.dao.ArticleDAO
 import id.gemeto.rasff.notifier.data.local.entity.Article
 import id.gemeto.rasff.notifier.domain.service.TitleVectorizerService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.withContext
 
 data class ChatMessage(
@@ -55,6 +56,8 @@ data class ChatMessage(
     val isComplete: Boolean = true,
     val imageUri: Uri? = null
 )
+
+typealias ResultListener = (partialText: String, done: Boolean) -> Unit
 
 class ChatBotActivity : ComponentActivity() {
 
@@ -109,6 +112,7 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
     var messages by remember { mutableStateOf(listOf<ChatMessage>()) }
     var currentMessage by remember { mutableStateOf("") }
     var isGenerating by remember { mutableStateOf(false) }
+    var generationMessage by remember { mutableStateOf("Escribiendo") }
     var currentStreamingMessage by remember { mutableStateOf("") }
     var isUserTouching by remember { mutableStateOf(false) }
     var userScrolledManually by remember { mutableStateOf(false) }
@@ -211,8 +215,13 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
     suspend fun sendMessage(justChat: Boolean = false) {
         if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
 
-        val sysPrompt = "Eres un asistente capaz de leer el contexto de alertas alimentarias actuales y ver imagenes. Unicamente contesta a la pregunta del usuario. Contesta siempre en español."
-        val msg = if(!justChat) {
+        val sysPrompt = "Eres un asistente capaz de leer el contexto de alertas alimentarias actuales. Unicamente contesta a la pregunta del usuario. Contesta siempre en español."
+        val sysImagePrompt = "Unicamente devuelve una cadena de texto que contenga las palabras clave de la lista en la imagen, separadas por un espacio. " +
+                "No uses numeros ni simbolos, las palabras clave son unicamente los alimentos listados, siempre en singular. " +
+                "No debes emitir ninguna otra información."
+
+        val msg = if(!justChat && selectedImageUri == null) {
+            generationMessage = "Buscando contenido relevante"
             val queryVector = _titleVectorizerService.getVector(currentMessage)
             val allDbArticles = _articleDao.getAll()
             val articlesWithSimilarity = allDbArticles.map { dbArticle ->
@@ -253,16 +262,15 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
         userScrolledManually = false
         isAutoScrolling = true
 
-        // Agregar mensaje vacío para el streaming simulado
+        // Agregar mensaje vacío para el streaming
         currentStreamingMessage = ""
         messages = messages + ChatMessage("", false, false)
         isAutoScrolling = true
 
-        scope.launch { // Asegúrate que 'scope' no esté rígidamente atado al Main thread por defecto para todo.
-            // Si usas viewModelScope, esto ya maneja la cancelación automáticamente.
+        scope.launch {
             try {
                 // Mueve la lógica de inferencia pesada a un hilo de fondo
-                val fullResponse = withContext(Dispatchers.IO) { // O Dispatchers.Default si es más apropiado
+                withContext(Dispatchers.IO) {
                     // Crear sesión con modalidad de visión habilitada
                     val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
                         .setTopK(10)
@@ -270,80 +278,75 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
                         .setGraphOptions(GraphOptions.builder().setEnableVisionModality(true).build())
                         .build()
 
+                    var keywords = ""
+                    if (!justChat && userImageUri != null) {
+                        generationMessage = "Analizando la imagen"
+                        val session = LlmInferenceSession.createFromOptions(llmInference, sessionOptions)
+                        session.addQueryChunk(sysImagePrompt)
+                        val mpImage = uriToMPImage(userImageUri)
+                        if (mpImage != null) {
+                            session.addImage(mpImage)
+                            keywords = session.generateResponse()
+                            session.close()
+                        }
+                    }
+
                     val session = LlmInferenceSession.createFromOptions(llmInference, sessionOptions)
 
                     // Preparar el prompt
                     val finalPrompt = if (msg.isNotBlank()) {
-                        msg
+                        if(keywords.isNotBlank()) {
+                            generationMessage = "Buscando contenido relevante"
+                            val queryVector = _titleVectorizerService.getVector(keywords)
+                            val allDbArticles = _articleDao.getAll()
+                            val articlesWithSimilarity = allDbArticles.map { dbArticle ->
+                                val similarity = _titleVectorizerService.cosineSimilarity(
+                                    queryVector,
+                                    dbArticle.titleVector,
+                                ).toFloat()
+                                ArticleWithSimilarity(dbArticle, similarity)
+                            }
+
+                            var kekywordFilteredArticles = articlesWithSimilarity.filter {
+                                    article -> keywordSearchFilter(currentMessage, article)
+                            }
+                            var filteredArticles = articlesWithSimilarity
+                                .filter { similaritySearchFilter(currentMessage, it.dbArticle) }
+                                .sortedByDescending { it.similarity }
+                                .take(5)
+                                .map { it.dbArticle }
+                                .plus(kekywordFilteredArticles.map { it.dbArticle })
+                                .distinctBy { it.id }
+                                .take(10)
+
+                            val ragContext = filteredArticles.joinToString("\n") { it.title }
+                            "$sysPrompt\n\nInformación de referencia:\n\n$ragContext\n\nPalabras clave:\n\n$keywords\n\n" +
+                                    "Pregunta:\n\n" +
+                                    "Escribe las noticias en la información de referencia que contengan una o mas palabras clave, o contengan alimentos relacionados con las palabras clave. " +
+                                    "Incluye siempre la o las palabras clave proporcionadas por las cuales se haya seleccionado la noticia en la respuesta, entre parentesis justo despues de la noticia. (Ej: Titulo noticia (carne)), " +
+                                    "y si la palabra clave por la que se ha seleccionado la noticia no aparece en la en las palabras clave proporcionadas en este mensaje, indica con una flecha a partir de que palabra clave se ha seleccionado la noticia. (Ej: Titulo noticia (hamburguesa -> carne)). " +
+                                    "No debes emitir ninguna otra información.\n\n" +
+                                    "Respuesta:"
+                        } else {
+                            msg
+                        }
+
                     } else {
                         "Hola"
                     }
-
-                    // Agregar el texto del query
+                    generationMessage = "Escribiendo"
                     session.addQueryChunk(finalPrompt)
-
-                    // Si hay imagen, agregarla a la sesión
-                    if (userImageUri != null) {
-                        val mpImage = uriToMPImage(userImageUri) // Esta función también podría ser pesada
-                        if (mpImage != null) {
-                            session.addImage(mpImage)
-                        }
+                    val resultListener: ResultListener = { partialText, done ->
+                        currentStreamingMessage += partialText
+                        messages = messages.dropLast(1) + ChatMessage(currentStreamingMessage, false, done)
                     }
-
-                    // Generar respuesta (esta es la operación principal bloqueante)
-                    val response = session.generateResponse()
-
-                    // Cerrar la sesión
+                    session.generateResponseAsync(resultListener).await()
                     session.close()
-                    response // Retornar la respuesta para usarla fuera de withContext
+                    currentStreamingMessage = ""
+                    isGenerating = false
+                    isAutoScrolling = false
                 }
-
-                // La simulación de streaming y actualización de UI debe ocurrir en el hilo principal
-                // Si 'scope' ya es MainScope o viewModelScope, no necesitas cambiar de contexto aquí.
-                // Si 'scope' es un scope genérico con Dispatchers.Default o IO, necesitas volver al Main thread:
-                // withContext(Dispatchers.Main) { ... }
-
-                val words = fullResponse.split(" ")
-                currentStreamingMessage = ""
-
-                for (i in words.indices) {
-                    if (!isGenerating) break
-
-                    val partialText = words.take(i + 1).joinToString(" ")
-                    currentStreamingMessage = partialText
-
-                    // Actualizar mensaje en streaming
-                    messages = messages.dropLast(1) +
-                            ChatMessage(currentStreamingMessage, false, false)
-
-                    if (!isUserTouching &&
-                        !userScrolledManually &&
-                        !listState.isScrollInProgress &&
-                        isAutoScrolling) {
-
-                        try {
-                            val shouldScroll = listState.firstVisibleItemIndex >= messages.size - 3 ||
-                                    listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == messages.size - 2
-                            if (shouldScroll) {
-                                listState.animateScrollToItem(messages.size - 1)
-                            }
-                        } catch (e: Exception) {
-                        }
-                    }
-
-                    // Pausa para simular escritura
-                    kotlinx.coroutines.delay(100) // delay es una función suspendible, no bloquea el hilo.
-                }
-                // Completar el mensaje
-                messages = messages.dropLast(1) +
-                        ChatMessage(currentStreamingMessage, false, true)
-                currentStreamingMessage = ""
-                isGenerating = false
-                isAutoScrolling = false
-
             } catch (e: Exception) {
-                // Manejar error (asegúrate que la actualización de UI también sea en el Main thread si es necesario)
-                // withContext(Dispatchers.Main) { ... }
                 messages = messages.dropLast(1) +
                         ChatMessage("Error: No se pudo generar respuesta - ${e.message}", false, true)
                 isGenerating = false
@@ -438,7 +441,7 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(messages) { message ->
-                ChatBubble(message = message)
+                ChatBubble(message = message, generationMessage = generationMessage)
             }
         }
 
@@ -528,7 +531,7 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
 }
 
 @Composable
-fun ChatBubble(message: ChatMessage) {
+fun ChatBubble(message: ChatMessage, generationMessage: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -599,7 +602,7 @@ fun ChatBubble(message: ChatMessage) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Escribiendo",
+                            text = generationMessage,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             fontSize = 10.sp

@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import id.gemeto.rasff.notifier.ui.Article as UiArticle
 import id.gemeto.rasff.notifier.data.mapper.ArticleMapper.Companion.toDbArticle
 import id.gemeto.rasff.notifier.data.mapper.ArticleMapper.Companion.toUiArticle
+import id.gemeto.rasff.notifier.domain.service.TranslationService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +60,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var _allRemoteArticlesLoaded = false
     private var similaritySearchText: String = ""
     private var similartySearchVector: List<Float> = emptyList()
+
+    private val _translationService = TranslationService()
 
     //Objects and functions
     object HomeViewConstants {
@@ -158,8 +161,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                 .replace("\\.".toRegex(), "")
                                 .replace("-".toRegex(), "")
                                 .trim()
-                            val titleVector = _titleVectorizerService.getVector(title)
-                            toDbArticle(uiArticle, titleVector)
+                            val translatedTitle = _translationService.translateTextToSpanish(title)
+                            val titleVector = _titleVectorizerService.getVector(translatedTitle)
+                            toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                         }
                     }
                     _articleDao.insertAll(dbArticlesToInsert)
@@ -183,8 +187,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                     .replace("\\.".toRegex(), "")
                                     .replace("-".toRegex(), "")
                                     .trim()
-                                val titleVector = _titleVectorizerService.getVector(title)
-                                toDbArticle(uiArticle, titleVector)
+                                val translatedTitle = _translationService.translateTextToSpanish(title)
+                                val titleVector = _titleVectorizerService.getVector(translatedTitle)
+                                toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                             }
                         }
                         _articleDao.insertAll(newDbArticles)
@@ -220,8 +225,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                     .replace("\\.".toRegex(), "")
                                     .replace("-".toRegex(), "")
                                     .trim()
-                                val titleVector = _titleVectorizerService.getVector(title)
-                                toDbArticle(uiArticle, titleVector)
+                                val translatedTitle = _translationService.translateTextToSpanish(title)
+                                val titleVector = _titleVectorizerService.getVector(translatedTitle)
+                                toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                             }
                         }
                         _articleDao.insertAll(newDbArticles)
@@ -243,8 +249,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                             .replace("\\.".toRegex(), "")
                                             .replace("-".toRegex(), "")
                                             .trim()
-                                        val titleVector = _titleVectorizerService.getVector(title)
-                                        toDbArticle(uiArticle, titleVector)
+                                        val translatedTitle = _translationService.translateTextToSpanish(title)
+                                        val titleVector = _titleVectorizerService.getVector(translatedTitle)
+                                        toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                                     }
                                 }
                                 _articleDao.insertAll(newDbArticles)
