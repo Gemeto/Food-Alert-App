@@ -66,8 +66,8 @@ class ChatBotActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val title: String? = intent.getStringExtra("title")
+        val justChat: Boolean = intent.getBooleanExtra("justChat", false)
         val imageUri: String? = intent.getStringExtra("imageUri")
-        val context: String? = intent.getStringExtra("context")
         setContent {
             MyApplicationTheme {
                 Surface(
@@ -76,6 +76,7 @@ class ChatBotActivity : ComponentActivity() {
                 ) {
                     ChatBotScreen(
                         title = title,
+                        justChat = justChat,
                         imageUri = imageUri
                     )
                 }
@@ -566,7 +567,8 @@ fun ChatBubble(message: ChatMessage) {
 
                 if (message.text.isNotBlank()) {
                     var textToDisplay = message.text
-                    if(message.isUser) {
+                    val showFullPrompt = false
+                    if(message.isUser && !showFullPrompt) {
                         val originalText = message.text
                         val preguntaMarker = "\n\nPregunta:\n\n"
                         val respuestaMarker = "\n\nRespuesta:"
