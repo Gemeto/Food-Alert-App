@@ -1,5 +1,6 @@
 package id.gemeto.rasff.notifier.ui.view
 
+import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -7,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +58,11 @@ data class ChatMessage(
 
 class ChatBotActivity : ComponentActivity() {
 
+    companion object {
+        internal var sharedLlmInference: LlmInference? = null
+        internal var isModelLoading = false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val title: String? = intent.getStringExtra("title")
@@ -73,11 +82,25 @@ class ChatBotActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // El modelo permanece en memoria
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Solo liberar el modelo si la actividad se está cerrando completamente
+        if (!isChangingConfigurations) {
+            sharedLlmInference?.close()
+            sharedLlmInference = null
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatBotScreen(title: String?, imageUri: String?) {
+fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -86,6 +109,9 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
     var currentMessage by remember { mutableStateOf("") }
     var isGenerating by remember { mutableStateOf(false) }
     var currentStreamingMessage by remember { mutableStateOf("") }
+    var isUserTouching by remember { mutableStateOf(false) }
+    var userScrolledManually by remember { mutableStateOf(false) }
+    var isAutoScrolling by remember { mutableStateOf(false) }
 
     // Estados para la imagen - REMOVIDO hasStoragePermission
     var selectedImageUri by remember { mutableStateOf<Uri?>(imageUri?.toUri()) }
@@ -102,8 +128,8 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
         }
     }
 
-    // Estado para LlmInference, inicializado a null
-    var llmInference by remember { mutableStateOf<LlmInference?>(null) }
+    // Estado para LlmInference usando el companion object
+    var llmInference by remember { mutableStateOf<LlmInference?>(ChatBotActivity.sharedLlmInference) }
     var llmError by remember { mutableStateOf<String?>(null) } // Para mostrar errores de carga del modelo
 
     val _titleVectorizerService = TitleVectorizerService.getInstance(
@@ -138,17 +164,28 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
 
     // LaunchedEffect para inicializar LLM en un hilo de fondo
     LaunchedEffect(Unit) { // Se ejecuta solo una vez cuando el composable entra en la composición
-        withContext(Dispatchers.IO) { // Mover la inicialización a un hilo de fondo
-            try {
-                val taskOptions = LlmInference.LlmInferenceOptions.builder()
-                    .setModelPath("/data/local/tmp/llm/gemma-3n-E2B-it-int4.task") // Asegúrate que esta ruta sea accesible
-                    .setMaxTopK(64)
-                    .setMaxNumImages(1)
-                    .build()
-                llmInference = LlmInference.createFromOptions(context, taskOptions)
-            } catch (e: Exception) {
-                llmError = "Error al cargar el modelo AI: ${e.localizedMessage}"
+        // Solo cargar si no existe ya un modelo y no se está cargando
+        if (ChatBotActivity.sharedLlmInference == null && !ChatBotActivity.isModelLoading) {
+            ChatBotActivity.isModelLoading = true
+            withContext(Dispatchers.IO) { // Mover la inicialización a un hilo de fondo
+                try {
+                    val taskOptions = LlmInference.LlmInferenceOptions.builder()
+                        .setModelPath("/data/local/tmp/llm/gemma-3n-E2B-it-int4.task") // Asegúrate que esta ruta sea accesible
+                        .setMaxTopK(64)
+                        .setMaxNumImages(1)
+                        .build()
+                    val newModel = LlmInference.createFromOptions(context, taskOptions)
+                    ChatBotActivity.sharedLlmInference = newModel
+                    llmInference = newModel
+                } catch (e: Exception) {
+                    llmError = "Error al cargar el modelo AI: ${e.localizedMessage}"
+                } finally {
+                    ChatBotActivity.isModelLoading = false
+                }
             }
+        } else if (ChatBotActivity.sharedLlmInference != null) {
+            // Si ya existe el modelo, usarlo directamente
+            llmInference = ChatBotActivity.sharedLlmInference
         }
     }
 
@@ -170,36 +207,37 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
     ).build()
     val _articleDao: ArticleDAO = _db.articleDao()
 
-    suspend fun sendMessage() {
+    suspend fun sendMessage(justChat: Boolean = false) {
         if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
-        val queryVector = _titleVectorizerService.getVector(currentMessage)
-        val allDbArticles = _articleDao.getAll()
-        val articlesWithSimilarity = allDbArticles.map { dbArticle ->
-            val similarity = _titleVectorizerService.cosineSimilarity(
-                queryVector,
-                dbArticle.titleVector,
-            ).toFloat()
-            ArticleWithSimilarity(dbArticle, similarity)
-        }
 
-        var kekywordFilteredArticles = articlesWithSimilarity.filter {
-                article -> keywordSearchFilter(currentMessage, article)
-        }
-        var filteredArticles = kekywordFilteredArticles
-            .map { it.dbArticle }
-            .plus(articlesWithSimilarity
+        val sysPrompt = "Eres un asistente capaz de leer el contexto de alertas alimentarias actuales y ver imagenes. Unicamente contesta a la pregunta del usuario. Contesta siempre en español."
+        val msg = if(!justChat) {
+            val queryVector = _titleVectorizerService.getVector(currentMessage)
+            val allDbArticles = _articleDao.getAll()
+            val articlesWithSimilarity = allDbArticles.map { dbArticle ->
+                val similarity = _titleVectorizerService.cosineSimilarity(
+                    queryVector,
+                    dbArticle.titleVector,
+                ).toFloat()
+                ArticleWithSimilarity(dbArticle, similarity)
+            }
+
+            var kekywordFilteredArticles = articlesWithSimilarity.filter {
+                    article -> keywordSearchFilter(currentMessage, article)
+            }
+            var filteredArticles = articlesWithSimilarity
                 .filter { similaritySearchFilter(currentMessage, it.dbArticle) }
                 .sortedByDescending { it.similarity }
                 .take(5)
-                .map { it.dbArticle })
-            .distinctBy { it.id }
-            .take(8)
-
-        val ragContext = filteredArticles.joinToString("\n") { it.title }
-        // Agregar mensaje del usuario con imagen si existe
-        val sysPrompt = "Eres un asistente capaz de leer el contexto de alertas alimentarias actuales y ver imagenes. Unicamente contesta a la pregunta del usuario. Contesta siempre en español."
-        val msg = "$sysPrompt\n\nInformación de referencia:\n\n$ragContext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
-        //val msg = "$sysPrompt\n\nPregunta:\n\n$currentMessage"
+                .map { it.dbArticle }
+                .plus(kekywordFilteredArticles.map { it.dbArticle })
+                .distinctBy { it.id }
+                .take(10)
+            val ragContext = filteredArticles.joinToString("\n") { it.title }
+            "$sysPrompt\n\nInformación de referencia:\n\n$ragContext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
+        }else {
+            "$sysPrompt\n\nPregunta:\n\n$currentMessage"
+        }
         messages = messages + ChatMessage(
             text = msg,
             isUser = true,
@@ -211,9 +249,13 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
         selectedImageUri = null
         isGenerating = true
 
+        userScrolledManually = false
+        isAutoScrolling = true
+
         // Agregar mensaje vacío para el streaming simulado
         currentStreamingMessage = ""
         messages = messages + ChatMessage("", false, false)
+        isAutoScrolling = true
 
         scope.launch { // Asegúrate que 'scope' no esté rígidamente atado al Main thread por defecto para todo.
             // Si usas viewModelScope, esto ya maneja la cancelación automáticamente.
@@ -264,6 +306,8 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
                 currentStreamingMessage = ""
 
                 for (i in words.indices) {
+                    if (!isGenerating) break
+
                     val partialText = words.take(i + 1).joinToString(" ")
                     currentStreamingMessage = partialText
 
@@ -271,18 +315,30 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
                     messages = messages.dropLast(1) +
                             ChatMessage(currentStreamingMessage, false, false)
 
-                    // Auto-scroll al final
-                    listState.animateScrollToItem(messages.size - 1)
+                    if (!isUserTouching &&
+                        !userScrolledManually &&
+                        !listState.isScrollInProgress &&
+                        isAutoScrolling) {
+
+                        try {
+                            val shouldScroll = listState.firstVisibleItemIndex >= messages.size - 3 ||
+                                    listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == messages.size - 2
+                            if (shouldScroll) {
+                                listState.animateScrollToItem(messages.size - 1)
+                            }
+                        } catch (e: Exception) {
+                        }
+                    }
 
                     // Pausa para simular escritura
                     kotlinx.coroutines.delay(100) // delay es una función suspendible, no bloquea el hilo.
                 }
-
                 // Completar el mensaje
                 messages = messages.dropLast(1) +
                         ChatMessage(currentStreamingMessage, false, true)
                 currentStreamingMessage = ""
                 isGenerating = false
+                isAutoScrolling = false
 
             } catch (e: Exception) {
                 // Manejar error (asegúrate que la actualización de UI también sea en el Main thread si es necesario)
@@ -290,6 +346,7 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
                 messages = messages.dropLast(1) +
                         ChatMessage("Error: No se pudo generar respuesta - ${e.message}", false, true)
                 isGenerating = false
+                isAutoScrolling = false
             }
         }
     }
@@ -344,7 +401,39 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
             state = listState,
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            isUserTouching = true
+                            try {
+                                awaitRelease()
+                            } finally {
+                                isUserTouching = false
+                            }
+                        }
+                    )
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = {
+                            isUserTouching = true
+                            if (isGenerating) {
+                                userScrolledManually = true
+                                isAutoScrolling = false
+                            }
+                        },
+                        onDragEnd = {
+                            isUserTouching = false
+                        },
+                        onDrag = { _, _ ->
+                            if (isGenerating) {
+                                userScrolledManually = true
+                                isAutoScrolling = false
+                            }
+                        }
+                    )
+                },
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(messages) { message ->
@@ -395,7 +484,7 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
                 value = currentMessage,
                 onValueChange = { currentMessage = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Escribe tu mensaje...") },
+                placeholder = { Text("Ej: Avisos sobre dulces...") },
                 enabled = !isGenerating,
                 maxLines = 3
             )
@@ -415,8 +504,8 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
             FloatingActionButton(
                 onClick = {
                     scope.launch {
-                    sendMessage()
-                }},
+                        sendMessage(justChat = justChat)
+                    }},
                 modifier = Modifier.size(56.dp),
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
