@@ -1,5 +1,6 @@
 package id.gemeto.rasff.notifier.ui.view
 
+import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -54,6 +55,11 @@ data class ChatMessage(
 
 class ChatBotActivity : ComponentActivity() {
 
+    companion object {
+        internal var sharedLlmInference: LlmInference? = null
+        internal var isModelLoading = false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val title: String? = intent.getStringExtra("title")
@@ -71,6 +77,20 @@ class ChatBotActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // El modelo permanece en memoria
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Solo liberar el modelo si la actividad se está cerrando completamente
+        if (!isChangingConfigurations) {
+            sharedLlmInference?.close()
+            sharedLlmInference = null
         }
     }
 }
@@ -102,8 +122,8 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
         }
     }
 
-    // Estado para LlmInference, inicializado a null
-    var llmInference by remember { mutableStateOf<LlmInference?>(null) }
+    // Estado para LlmInference usando el companion object
+    var llmInference by remember { mutableStateOf<LlmInference?>(ChatBotActivity.sharedLlmInference) }
     var llmError by remember { mutableStateOf<String?>(null) } // Para mostrar errores de carga del modelo
 
     val _titleVectorizerService = TitleVectorizerService.getInstance(
@@ -138,17 +158,28 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
 
     // LaunchedEffect para inicializar LLM en un hilo de fondo
     LaunchedEffect(Unit) { // Se ejecuta solo una vez cuando el composable entra en la composición
-        withContext(Dispatchers.IO) { // Mover la inicialización a un hilo de fondo
-            try {
-                val taskOptions = LlmInference.LlmInferenceOptions.builder()
-                    .setModelPath("/data/local/tmp/llm/gemma-3n-E2B-it-int4.task") // Asegúrate que esta ruta sea accesible
-                    .setMaxTopK(64)
-                    .setMaxNumImages(1)
-                    .build()
-                llmInference = LlmInference.createFromOptions(context, taskOptions)
-            } catch (e: Exception) {
-                llmError = "Error al cargar el modelo AI: ${e.localizedMessage}"
+        // Solo cargar si no existe ya un modelo y no se está cargando
+        if (ChatBotActivity.sharedLlmInference == null && !ChatBotActivity.isModelLoading) {
+            ChatBotActivity.isModelLoading = true
+            withContext(Dispatchers.IO) { // Mover la inicialización a un hilo de fondo
+                try {
+                    val taskOptions = LlmInference.LlmInferenceOptions.builder()
+                        .setModelPath("/data/local/tmp/llm/gemma-3n-E2B-it-int4.task") // Asegúrate que esta ruta sea accesible
+                        .setMaxTopK(64)
+                        .setMaxNumImages(1)
+                        .build()
+                    val newModel = LlmInference.createFromOptions(context, taskOptions)
+                    ChatBotActivity.sharedLlmInference = newModel
+                    llmInference = newModel
+                } catch (e: Exception) {
+                    llmError = "Error al cargar el modelo AI: ${e.localizedMessage}"
+                } finally {
+                    ChatBotActivity.isModelLoading = false
+                }
             }
+        } else if (ChatBotActivity.sharedLlmInference != null) {
+            // Si ya existe el modelo, usarlo directamente
+            llmInference = ChatBotActivity.sharedLlmInference
         }
     }
 
@@ -172,30 +203,30 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
 
     suspend fun sendMessage(justChat: Boolean = false) {
         if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
-        val queryVector = _titleVectorizerService.getVector(currentMessage)
-        val allDbArticles = _articleDao.getAll()
-        val articlesWithSimilarity = allDbArticles.map { dbArticle ->
-            val similarity = _titleVectorizerService.cosineSimilarity(
-                queryVector,
-                dbArticle.titleVector,
-            ).toFloat()
-            ArticleWithSimilarity(dbArticle, similarity)
-        }
-
-        var kekywordFilteredArticles = articlesWithSimilarity.filter {
-                article -> keywordSearchFilter(currentMessage, article)
-        }
-        var filteredArticles = articlesWithSimilarity
-            .filter { similaritySearchFilter(currentMessage, it.dbArticle) }
-            .sortedByDescending { it.similarity }
-            .take(5)
-            .map { it.dbArticle }
-            .plus(kekywordFilteredArticles.map { it.dbArticle })
-            .distinctBy { it.id }
-            .take(10)
 
         val sysPrompt = "Eres un asistente capaz de leer el contexto de alertas alimentarias actuales y ver imagenes. Unicamente contesta a la pregunta del usuario. Contesta siempre en español."
-        val msg = if(justChat) {
+        val msg = if(!justChat) {
+            val queryVector = _titleVectorizerService.getVector(currentMessage)
+            val allDbArticles = _articleDao.getAll()
+            val articlesWithSimilarity = allDbArticles.map { dbArticle ->
+                val similarity = _titleVectorizerService.cosineSimilarity(
+                    queryVector,
+                    dbArticle.titleVector,
+                ).toFloat()
+                ArticleWithSimilarity(dbArticle, similarity)
+            }
+
+            var kekywordFilteredArticles = articlesWithSimilarity.filter {
+                    article -> keywordSearchFilter(currentMessage, article)
+            }
+            var filteredArticles = articlesWithSimilarity
+                .filter { similaritySearchFilter(currentMessage, it.dbArticle) }
+                .sortedByDescending { it.similarity }
+                .take(5)
+                .map { it.dbArticle }
+                .plus(kekywordFilteredArticles.map { it.dbArticle })
+                .distinctBy { it.id }
+                .take(10)
             val ragContext = filteredArticles.joinToString("\n") { it.title }
             "$sysPrompt\n\nInformación de referencia:\n\n$ragContext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
         }else {
@@ -416,8 +447,8 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
             FloatingActionButton(
                 onClick = {
                     scope.launch {
-                    sendMessage(justChat = justChat)
-                }},
+                        sendMessage(justChat = justChat)
+                    }},
                 modifier = Modifier.size(56.dp),
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
