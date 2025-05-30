@@ -283,6 +283,7 @@ fun Articles(data: HomeUiState, viewModel: HomeViewModel, onLoadMore: () -> Unit
                     onClick = {
                         val intent = Intent(context, ChatBotActivity::class.java)
                         intent.putExtra("title", "Gemma 3n Chat")
+                        intent.putExtra("justChat", true)
                         context.startActivity(intent)
                     }
                 )

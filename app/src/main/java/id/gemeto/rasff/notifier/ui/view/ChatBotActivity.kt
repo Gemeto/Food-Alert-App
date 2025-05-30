@@ -77,7 +77,7 @@ class ChatBotActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatBotScreen(title: String?, imageUri: String?) {
+fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -170,7 +170,7 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
     ).build()
     val _articleDao: ArticleDAO = _db.articleDao()
 
-    suspend fun sendMessage() {
+    suspend fun sendMessage(justChat: Boolean = false) {
         if ((currentMessage.isBlank() && selectedImageUri == null) || isGenerating || llmInference == null) return
         val queryVector = _titleVectorizerService.getVector(currentMessage)
         val allDbArticles = _articleDao.getAll()
@@ -185,21 +185,22 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
         var kekywordFilteredArticles = articlesWithSimilarity.filter {
                 article -> keywordSearchFilter(currentMessage, article)
         }
-        var filteredArticles = kekywordFilteredArticles
+        var filteredArticles = articlesWithSimilarity
+            .filter { similaritySearchFilter(currentMessage, it.dbArticle) }
+            .sortedByDescending { it.similarity }
+            .take(5)
             .map { it.dbArticle }
-            .plus(articlesWithSimilarity
-                .filter { similaritySearchFilter(currentMessage, it.dbArticle) }
-                .sortedByDescending { it.similarity }
-                .take(5)
-                .map { it.dbArticle })
+            .plus(kekywordFilteredArticles.map { it.dbArticle })
             .distinctBy { it.id }
-            .take(8)
+            .take(10)
 
-        val ragContext = filteredArticles.joinToString("\n") { it.title }
-        // Agregar mensaje del usuario con imagen si existe
         val sysPrompt = "Eres un asistente capaz de leer el contexto de alertas alimentarias actuales y ver imagenes. Unicamente contesta a la pregunta del usuario. Contesta siempre en español."
-        val msg = "$sysPrompt\n\nInformación de referencia:\n\n$ragContext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
-        //val msg = "$sysPrompt\n\nPregunta:\n\n$currentMessage"
+        val msg = if(justChat) {
+            val ragContext = filteredArticles.joinToString("\n") { it.title }
+            "$sysPrompt\n\nInformación de referencia:\n\n$ragContext\n\nPregunta:\n\n$currentMessage\n\nRespuesta:"
+        }else {
+            "$sysPrompt\n\nPregunta:\n\n$currentMessage"
+        }
         messages = messages + ChatMessage(
             text = msg,
             isUser = true,
@@ -415,7 +416,7 @@ fun ChatBotScreen(title: String?, imageUri: String?) {
             FloatingActionButton(
                 onClick = {
                     scope.launch {
-                    sendMessage()
+                    sendMessage(justChat = justChat)
                 }},
                 modifier = Modifier.size(56.dp),
                 containerColor = MaterialTheme.colorScheme.primary
