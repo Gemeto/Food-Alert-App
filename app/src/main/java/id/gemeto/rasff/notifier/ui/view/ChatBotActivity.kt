@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -106,6 +109,9 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
     var currentMessage by remember { mutableStateOf("") }
     var isGenerating by remember { mutableStateOf(false) }
     var currentStreamingMessage by remember { mutableStateOf("") }
+    var isUserTouching by remember { mutableStateOf(false) }
+    var userScrolledManually by remember { mutableStateOf(false) }
+    var isAutoScrolling by remember { mutableStateOf(false) }
 
     // Estados para la imagen - REMOVIDO hasStoragePermission
     var selectedImageUri by remember { mutableStateOf<Uri?>(imageUri?.toUri()) }
@@ -243,9 +249,13 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
         selectedImageUri = null
         isGenerating = true
 
+        userScrolledManually = false
+        isAutoScrolling = true
+
         // Agregar mensaje vacío para el streaming simulado
         currentStreamingMessage = ""
         messages = messages + ChatMessage("", false, false)
+        isAutoScrolling = true
 
         scope.launch { // Asegúrate que 'scope' no esté rígidamente atado al Main thread por defecto para todo.
             // Si usas viewModelScope, esto ya maneja la cancelación automáticamente.
@@ -296,6 +306,8 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
                 currentStreamingMessage = ""
 
                 for (i in words.indices) {
+                    if (!isGenerating) break
+
                     val partialText = words.take(i + 1).joinToString(" ")
                     currentStreamingMessage = partialText
 
@@ -303,18 +315,30 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
                     messages = messages.dropLast(1) +
                             ChatMessage(currentStreamingMessage, false, false)
 
-                    // Auto-scroll al final
-                    listState.animateScrollToItem(messages.size - 1)
+                    if (!isUserTouching &&
+                        !userScrolledManually &&
+                        !listState.isScrollInProgress &&
+                        isAutoScrolling) {
+
+                        try {
+                            val shouldScroll = listState.firstVisibleItemIndex >= messages.size - 3 ||
+                                    listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == messages.size - 2
+                            if (shouldScroll) {
+                                listState.animateScrollToItem(messages.size - 1)
+                            }
+                        } catch (e: Exception) {
+                        }
+                    }
 
                     // Pausa para simular escritura
                     kotlinx.coroutines.delay(100) // delay es una función suspendible, no bloquea el hilo.
                 }
-
                 // Completar el mensaje
                 messages = messages.dropLast(1) +
                         ChatMessage(currentStreamingMessage, false, true)
                 currentStreamingMessage = ""
                 isGenerating = false
+                isAutoScrolling = false
 
             } catch (e: Exception) {
                 // Manejar error (asegúrate que la actualización de UI también sea en el Main thread si es necesario)
@@ -322,6 +346,7 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
                 messages = messages.dropLast(1) +
                         ChatMessage("Error: No se pudo generar respuesta - ${e.message}", false, true)
                 isGenerating = false
+                isAutoScrolling = false
             }
         }
     }
@@ -376,7 +401,39 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
             state = listState,
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            isUserTouching = true
+                            try {
+                                awaitRelease()
+                            } finally {
+                                isUserTouching = false
+                            }
+                        }
+                    )
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = {
+                            isUserTouching = true
+                            if (isGenerating) {
+                                userScrolledManually = true
+                                isAutoScrolling = false
+                            }
+                        },
+                        onDragEnd = {
+                            isUserTouching = false
+                        },
+                        onDrag = { _, _ ->
+                            if (isGenerating) {
+                                userScrolledManually = true
+                                isAutoScrolling = false
+                            }
+                        }
+                    )
+                },
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(messages) { message ->
@@ -427,7 +484,7 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
                 value = currentMessage,
                 onValueChange = { currentMessage = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Avisos sobre dulces...") },
+                placeholder = { Text("Ej: Avisos sobre dulces...") },
                 enabled = !isGenerating,
                 maxLines = 3
             )
