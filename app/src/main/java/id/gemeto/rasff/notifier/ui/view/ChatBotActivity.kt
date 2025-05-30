@@ -427,7 +427,7 @@ fun ChatBotScreen(title: String?, imageUri: String?, justChat: Boolean = false) 
                 value = currentMessage,
                 onValueChange = { currentMessage = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Escribe tu mensaje...") },
+                placeholder = { Text("Avisos sobre dulces...") },
                 enabled = !isGenerating,
                 maxLines = 3
             )
