@@ -78,7 +78,7 @@ graph TB
 - **Ksoup** - Parsing de HTML/XML
 - **WorkManager** - Procesamiento en segundo plano
 
-### AI & ML
+### Edge AI & ML
 - **ML Kit** - OCR y traducción automática
 - **MediaPipe** - Modelo LLM Gemma-3N para chat
 - **Google Translate** - Servicios de traducción
@@ -99,9 +99,10 @@ La aplicación implementa búsqueda en tiempo real con capacidades avanzadas: [1
 La funcionalidad de chat permite interacciones con texto e imágenes: [2](#0-1) 
 
 **Características del Chat:**
-- Modelo **Gemma-3N** de MediaPipe
+- Modelo **Gemma-3N** de [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/genai/llm_inference/android?hl=es-419)
 - Soporte para **imágenes y texto**
-- Respuestas en **streaming** simulado
+- **RAG** para gestión del contexto, usando [Android Edge RAG](https://ai.google.dev/edge/mediapipe/solutions/genai/rag/android?hl=es-419#embedding)
+- Respuestas en **streaming**
 - Configuración optimizada para seguridad alimentaria
 
 ### 📸 Reconocimiento OCR
