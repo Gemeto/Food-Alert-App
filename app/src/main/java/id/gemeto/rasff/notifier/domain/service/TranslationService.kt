@@ -51,7 +51,7 @@ class TranslationService {
                 .addOnSuccessListener {}
                 .addOnFailureListener {}
         )
-        if(languageCode == "en" || languageCode == "und") {
+        if(languageCode != "es") {
             return text
         }
         val translatorOptions = TranslatorOptions.Builder()

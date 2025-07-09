@@ -52,14 +52,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val searchText = _searchText.asStateFlow()
     private val _isSearching = MutableStateFlow(false)
     val isSearching = _isSearching.asStateFlow()
-    private val SIMILARITY_THRESHOLD = 0.8f
-
     private val _isLoadingMore = MutableStateFlow(false)
     val isLoadingMore = _isLoadingMore.asStateFlow()
     private val _page = MutableStateFlow(0)
     private var _allRemoteArticlesLoaded = false
-    private var similaritySearchText: String = ""
-    private var similartySearchVector: List<Float> = emptyList()
 
     private val _translationService = TranslationService()
 
@@ -75,52 +71,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun keywordSearchFilter(article: UiArticle): Boolean =
         searchKeywords().any{ query -> article.title.lowercase().contains(query) }
 
-    private suspend fun searchSimilarity(article: UiArticle): Float = withContext(Dispatchers.IO) {
-        if(similaritySearchText != searchText.value) {
-            similartySearchVector = _titleVectorizerService.getVector(searchText.value)
-            similaritySearchText = searchText.value
-        }
-        _titleVectorizerService.cosineSimilarity(
-            similartySearchVector,
-            article.titleVector,
-        ).toFloat()
-    }
-
-    private suspend fun similaritySearchFilter(article: UiArticle): Boolean =
-        searchSimilarity(article) > SIMILARITY_THRESHOLD
-
     private fun shouldLoadMore(): Boolean =
         !_allRemoteArticlesLoaded && !_isSearching.value &&
         !_isLoadingMore.value && _uiStateUnfiltered.value is UiResult.Success
 
-    private suspend fun hasMoreToLoad(currentArticles: List<Article>, nInitItems: Int, isArticlesInit: Boolean = false): Boolean  =
+    private fun hasMoreToLoad(currentArticles: List<Article>, nInitItems: Int, isArticlesInit: Boolean = false): Boolean  =
         !_allRemoteArticlesLoaded && !_isSearching.value
         && ((searchText.value.isEmpty() && currentArticles.size < (nInitItems + if(isArticlesInit) 0 else HomeViewConstants.ITEMS_PER_PAGE))
-        || (!searchText.value.isEmpty() && currentArticles.count { keywordSearchFilter(it) && similaritySearchFilter(it) } < (nInitItems + if(isArticlesInit) 0 else HomeViewConstants.ITEMS_PER_PAGE))
+        || (!searchText.value.isEmpty() && currentArticles.count { keywordSearchFilter(it) } < (nInitItems + if(isArticlesInit) 0 else HomeViewConstants.ITEMS_PER_PAGE))
         || _cloudService.lastRSSArticleDate < currentArticles.last().unixTime) // TODO: improve. This is to ensure list will always have articles from any src older than the last one
-
-    data class ArticleWithSimilarity(val dbArticle: UiArticle, val similarity: Float)
 
     val uiState: StateFlow<UiResult<HomeUiState>> = searchText
         .onEach { _isSearching.update { true } }
         .combine(_uiStateUnfiltered) { query, unfilteredState ->
             if (query.isNotEmpty()) {
                 _isSearching.update { true }
-                var finalUiArticles = List<Article>(0){ Article("", "", "", "", 0, floatArrayOf(0.0f).toList()) }
-
+                var finalUiArticles = List(0){ Article("", "", "", "", 0, floatArrayOf(0.0f).toList()) }
                 if (unfilteredState is UiResult.Success) {
-                    finalUiArticles = unfilteredState.data.articles.filter {
-                            article -> keywordSearchFilter(article)
-                    }
-
-                    finalUiArticles = finalUiArticles
-                        .plus(unfilteredState.data.articles
-                            .map{ article -> ArticleWithSimilarity(article, searchSimilarity(article))}
-                            .filter { similaritySearchFilter(it.dbArticle) }
-                            .sortedByDescending { it.similarity }
-                            .take(5)
-                            .map { it.dbArticle })
-                        .distinctBy { it.link }
+                    finalUiArticles = finalUiArticles.plus(unfilteredState.data.articles.filter{ keywordSearchFilter(it) })
 
                 } else {
                     _isSearching.update { false }
@@ -161,8 +129,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                 .replace("\\.".toRegex(), "")
                                 .replace("-".toRegex(), "")
                                 .trim()
-                            val translatedTitle = _translationService.translateTextToSpanish(title)
+                            var translatedTitle = _translationService.translateTextToEnglish(title)
                             val titleVector = _titleVectorizerService.getVector(translatedTitle)
+                            translatedTitle = _translationService.translateTextToSpanish(title.replace("//.*".toRegex(), ""))
                             toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                         }
                     }
@@ -187,8 +156,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                     .replace("\\.".toRegex(), "")
                                     .replace("-".toRegex(), "")
                                     .trim()
-                                val translatedTitle = _translationService.translateTextToSpanish(title)
+                                var translatedTitle = _translationService.translateTextToEnglish(title)
                                 val titleVector = _titleVectorizerService.getVector(translatedTitle)
+                                translatedTitle = _translationService.translateTextToSpanish(title.replace("//.*".toRegex(), ""))
                                 toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                             }
                         }
@@ -225,8 +195,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                     .replace("\\.".toRegex(), "")
                                     .replace("-".toRegex(), "")
                                     .trim()
-                                val translatedTitle = _translationService.translateTextToSpanish(title)
+                                var translatedTitle = _translationService.translateTextToEnglish(title)
                                 val titleVector = _titleVectorizerService.getVector(translatedTitle)
+                                translatedTitle = _translationService.translateTextToSpanish(title.replace("//.*".toRegex(), ""))
                                 toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                             }
                         }
@@ -249,8 +220,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                             .replace("\\.".toRegex(), "")
                                             .replace("-".toRegex(), "")
                                             .trim()
-                                        val translatedTitle = _translationService.translateTextToSpanish(title)
+                                        var translatedTitle = _translationService.translateTextToEnglish(title)
                                         val titleVector = _titleVectorizerService.getVector(translatedTitle)
+                                        translatedTitle = _translationService.translateTextToSpanish(title.replace("//.*".toRegex(), ""))
                                         toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                                     }
                                 }

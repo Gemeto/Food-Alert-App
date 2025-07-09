@@ -96,7 +96,7 @@ class CloudService(private val httpClient: HttpClient) {
                             val articleDoc = Ksoup.parse(articleHtml)
                             val imageSrc = articleDoc.selectFirst("img")?.attr("src")
                             val text = articleDoc.selectFirst(".theContent p")?.text() ?: ""
-                            val textDate = text.replace("Fecha y hora: ", "")
+                            val textDate = text.replace("Fecha y hora: ", "").replace("h", "")
                             var unixTime: Long = 0
                             if(textDate.isNotEmpty() && !textDate.contains("[a-zA-Z]".toRegex())) {
                                 val date = LocalDate.parse(textDate, DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
