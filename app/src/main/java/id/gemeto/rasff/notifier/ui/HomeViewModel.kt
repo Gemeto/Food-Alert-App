@@ -131,7 +131,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                 .trim()
                             var translatedTitle = _translationService.translateTextToEnglish(title)
                             val titleVector = _titleVectorizerService.getVector(translatedTitle)
-                            translatedTitle = _translationService.translateTextToSpanish(title.replace("//.*".toRegex(), ""))
+                            translatedTitle = _translationService.translateTextToSpanish(title.replace("/.*".toRegex(), ""))
                             toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                         }
                     }
@@ -158,7 +158,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                     .trim()
                                 var translatedTitle = _translationService.translateTextToEnglish(title)
                                 val titleVector = _titleVectorizerService.getVector(translatedTitle)
-                                translatedTitle = _translationService.translateTextToSpanish(title.replace("//.*".toRegex(), ""))
+                                translatedTitle = _translationService.translateTextToSpanish(title.replace("/.*".toRegex(), ""))
                                 toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                             }
                         }
@@ -197,7 +197,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                     .trim()
                                 var translatedTitle = _translationService.translateTextToEnglish(title)
                                 val titleVector = _titleVectorizerService.getVector(translatedTitle)
-                                translatedTitle = _translationService.translateTextToSpanish(title.replace("//.*".toRegex(), ""))
+                                translatedTitle = _translationService.translateTextToSpanish(title.replace("/.*".toRegex(), ""))
                                 toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                             }
                         }
@@ -222,7 +222,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                                             .trim()
                                         var translatedTitle = _translationService.translateTextToEnglish(title)
                                         val titleVector = _titleVectorizerService.getVector(translatedTitle)
-                                        translatedTitle = _translationService.translateTextToSpanish(title.replace("//.*".toRegex(), ""))
+                                        translatedTitle = _translationService.translateTextToSpanish(title.replace("/.*".toRegex(), ""))
                                         toDbArticle(uiArticle.copy(title = translatedTitle), titleVector)
                                     }
                                 }
